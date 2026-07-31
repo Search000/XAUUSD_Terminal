@@ -29,21 +29,14 @@ process.on("uncaughtException", (err) => {
   logger.error({ err }, "Uncaught exception — continuing");
 });
 
-// ── Keep-alive self-ping (Render free tier spins down after 15 min idle) ─────
-// Pings /api/healthz every 14 minutes so the server never goes to sleep.
-// Only runs in production to avoid noise in dev.
-function startKeepAlive(serverPort: number) {
-  if (process.env["NODE_ENV"] !== "production") return;
-  const PING_INTERVAL = 14 * 60 * 1000; // 14 minutes
-  setInterval(async () => {
-    try {
-      const res = await fetch(`http://localhost:${serverPort}/api/healthz`);
-      logger.info({ status: res.status }, "Keep-alive ping");
-    } catch (err) {
-      logger.warn({ err }, "Keep-alive ping failed");
-    }
-  }, PING_INTERVAL).unref();
-}
+// ── Keep-alive (Render free tier spins down after 15 min without INBOUND traffic) ─
+// NOTE: We intentionally do NOT self-ping localhost here. Render's spin-down timer
+// only resets on inbound traffic that passes through its external routing layer —
+// a loopback request from inside the same process never reaches that layer, so it
+// does nothing to prevent sleep. Keep-alive is instead handled by an external
+// monitor (UptimeRobot) hitting the public /api/healthz endpoint every 5 minutes,
+// which keeps the process — and therefore the node-cron scheduler — continuously
+// alive so daily/weekly/monthly Telegram reports fire on schedule.
 
 // Run DB migrations before accepting traffic
 runMigrations()
@@ -51,7 +44,6 @@ runMigrations()
     const server = app.listen(port, () => {
       logger.info({ port }, "Server listening");
       startScheduler();
-      startKeepAlive(port);
       liveGoldFeed.start(); // shared free live price feed for all users
     });
     // Attach WebSocket server for real-time encrypted chat
