@@ -509,10 +509,15 @@ router.get("/xauusd/sessions", async (_req, res) => {
   res.json(result);
 });
 
-// GET /api/xauusd/news — fully static, no external calls, no ERR_HTTP2 risk
-router.get("/xauusd/news", (_req, res) => {
+// ─── News cache (5 min TTL — avoids hammering NewsAPI + free-tier rate limits) ──
+let newsCache: any = null;
+let newsCacheAt = 0;
+const NEWS_TTL = 5 * 60 * 1000;
+
+// Static fallback used when NEWS_API_KEY is missing or the live fetch fails.
+const FALLBACK_NEWS = () => {
   const now = Date.now();
-  res.json([
+  return [
     {
       id: "n1",
       title: "Gold Prices Steady as Markets Await Fed Minutes",
@@ -553,7 +558,88 @@ router.get("/xauusd/news", (_req, res) => {
       publishedAt: new Date(now - 28_800_000).toISOString(),
       sentiment: "neutral",
     },
-  ]);
+  ];
+};
+
+// NewsAPI.org "everything" endpoint — free/dev tier is enough for a 5-min-cached feed.
+const NEWS_API_URL = "https://newsapi.org/v2/everything";
+const NEWS_QUERY =
+  '(gold OR XAU/USD OR XAUUSD OR "precious metals") AND (Fed OR "Federal Reserve" OR dollar OR USD)';
+
+async function fetchLiveGoldNews(): Promise<any[]> {
+  const apiKey = process.env["NEWS_API_KEY"];
+  if (!apiKey) {
+    throw new Error("NEWS_API_KEY not set");
+  }
+
+  const url =
+    `${NEWS_API_URL}?q=${encodeURIComponent(NEWS_QUERY)}` +
+    `&language=en&sortBy=publishedAt&pageSize=20&apiKey=${apiKey}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  let data: any;
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`NewsAPI error: ${res.status}`);
+    data = await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const articles: any[] = Array.isArray(data?.articles) ? data.articles : [];
+
+  const seen = new Set<string>();
+  const items: any[] = [];
+  for (const a of articles) {
+    const title: string = a?.title ?? "";
+    const url_: string = a?.url ?? "";
+    if (!title || !url_) continue;
+
+    const dedupeKey = (title || url_).trim().toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    items.push({
+      id: url_ || `${title}-${a?.publishedAt ?? ""}`,
+      title,
+      source: a?.source?.name ?? "News",
+      url: url_,
+      publishedAt: a?.publishedAt
+        ? new Date(a.publishedAt).toISOString()
+        : new Date().toISOString(),
+    });
+  }
+
+  items.sort(
+    (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+  );
+
+  return items.slice(0, 10);
+}
+
+// GET /api/xauusd/news
+router.get("/xauusd/news", async (_req, res) => {
+  const now = Date.now();
+  if (newsCache && now - newsCacheAt < NEWS_TTL) {
+    res.json(newsCache);
+    return;
+  }
+
+  try {
+    const items = await fetchLiveGoldNews();
+    if (items.length === 0) throw new Error("Live news feed returned 0 items");
+    newsCache = items;
+    newsCacheAt = now;
+    res.json(newsCache);
+  } catch (err) {
+    logger.warn({ err }, "xauusd/news: live feed unavailable, serving fallback");
+    if (newsCache) {
+      res.json(newsCache);
+      return;
+    }
+    res.json(FALLBACK_NEWS());
+  }
 });
 
 // GET /api/xauusd/calendar
