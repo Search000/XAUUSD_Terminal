@@ -7,7 +7,7 @@ import './index.css';
 // environment variable override for other environments, but make the
 // production deployment work even when Render does not inject it at build time.
 const apiBaseUrl =
-  import.meta.env.VITE_API_URL || 'https://xauusd-terminal-api-uq6u.onrender.com';
+  import.meta.env.VITE_API_URL || 'https://xauusd-terminal-api.onrender.com';
 
 setBaseUrl(apiBaseUrl);
 

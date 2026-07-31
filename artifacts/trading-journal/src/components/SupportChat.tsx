@@ -14,7 +14,7 @@ type ChatMessage = {
 function getWsBaseUrl(): string {
   const apiUrl =
     (import.meta.env.VITE_API_URL as string | undefined) ||
-    "https://xauusd-terminal-api-uq6u.onrender.com";
+    "https://xauusd-terminal-api.onrender.com";
   return apiUrl.replace(/^https?:\/\//, (m) =>
     m.startsWith("https") ? "wss://" : "ws://"
   );
