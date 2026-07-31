@@ -781,17 +781,26 @@ async function fetchLiveCalendar(): Promise<any[]> {
     `https://api.tradingeconomics.com/calendar/country/united%20states` +
     `?d1=${from}&d2=${until}&c=${encodeURIComponent(apiKey)}`;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-  let data: any;
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`Calendar feed error: ${res.status}`);
-    data = await res.json();
-  } finally {
-    clearTimeout(timer);
+  // Trading Economics free/trial tier occasionally 429s under load — one
+  // retry with a short backoff avoids a false "feed unavailable" fallback.
+  async function fetchWithRetry(attempt = 0): Promise<any> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (res.status === 429 && attempt < 1) {
+        clearTimeout(timer);
+        await new Promise((r) => setTimeout(r, 800));
+        return fetchWithRetry(attempt + 1);
+      }
+      if (!res.ok) throw new Error(`Calendar feed error: ${res.status}`);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
+  const data = await fetchWithRetry();
   const rows: any[] = Array.isArray(data) ? data : [];
 
   const impactFromImportance = (n: number): "low" | "medium" | "high" =>
@@ -823,8 +832,17 @@ async function fetchLiveCalendar(): Promise<any[]> {
       return GOLD_RELEVANT_KEYWORDS.some((k) => t.includes(k));
     });
 
-  events.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-  return events;
+  // Some upstream feeds emit the same release twice (e.g. a preliminary +
+  // revised row sharing an id) — keep the first occurrence only.
+  const seen = new Set<string>();
+  const deduped = events.filter((e) => {
+    if (seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
+  });
+
+  deduped.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return deduped;
 }
 
 // GET /api/xauusd/calendar
