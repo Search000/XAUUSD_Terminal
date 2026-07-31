@@ -1,0 +1,46 @@
+import { Router } from "express";
+import healthRouter from "./health";
+import xauusdRouter from "./xauusd";
+import licensesRouter from "./licenses";
+import tradesRouter from "./trades";
+import dashboardRouter from "./dashboard";
+import reportsRouter from "./reports";
+import investorsRouter from "./investors";
+import settingsRouter from "./settings";
+import adminRouter from "./admin";
+import meRouter from "./me";
+import offersRouter from "./offers";
+import goldpriceRouter from "./goldprice";
+import contactRouter from "./contact";
+import notificationsRouter from "./notifications";
+import achievementsRouter from "./achievements";
+import scoreRouter from "./score";
+import mistakesRouter from "./mistakes";
+import heatmapRouter from "./heatmap";
+import feedbackRouter from "./feedback";
+import supportRouter from "./support";
+
+const router = Router();
+
+router.use(healthRouter);
+router.use(xauusdRouter);
+router.use(contactRouter);
+router.use(goldpriceRouter);
+router.use(meRouter);
+router.use(licensesRouter);
+router.use(tradesRouter);
+router.use(dashboardRouter);
+router.use(reportsRouter);
+router.use(investorsRouter);
+router.use(settingsRouter);
+router.use(adminRouter);
+router.use(offersRouter);
+router.use(notificationsRouter);
+router.use(achievementsRouter);
+router.use(scoreRouter);
+router.use(mistakesRouter);
+router.use(heatmapRouter);
+router.use(feedbackRouter);
+router.use(supportRouter);
+
+export default router;

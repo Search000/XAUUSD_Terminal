@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "XAUUSD Trading Journal"
+version = "1.0.0"
+id = "artifacts/trading-journal"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21194
+
+[services.development]
+run = "pnpm --filter @workspace/trading-journal run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/trading-journal", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/trading-journal/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21194"
+BASE_PATH = "/"

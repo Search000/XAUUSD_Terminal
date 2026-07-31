@@ -1,0 +1,501 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { Activity, WifiOff, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@clerk/react';
+
+interface TickData {
+  price: number;
+  change: number;
+  changePct: number;
+  high24h: number;
+  low24h: number;
+  open24h: number;
+  timestamp: number;
+  direction?: 'up' | 'down' | 'flat';
+  tickCount?: number;
+  spread?: number;
+  source?: string;
+}
+
+interface MetalQuote {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePct: number;
+  high24h: number;
+  low24h: number;
+  unit: string;
+}
+
+function fmt(n: number, digits = 2) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function fmtCompact(n: number, symbol: string) {
+  // DXY shows 3 decimal places; metals show 2
+  const d = symbol === 'DXY' ? 3 : 2;
+  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+// ─── Bloomberg-style Ticker Tape ──────────────────────────────────────────────
+function BloombergTape({ metals, goldTick }: { metals: MetalQuote[]; goldTick: TickData | null }) {
+  const LABEL_MAP: Record<string, string> = {
+    XAU: 'GOLD',
+    XAG: 'SILVER',
+    XPT: 'PLATINUM',
+    XPD: 'PALLADIUM',
+    DXY: 'DXY',
+  };
+
+  // Build ordered items: Gold first (live SSE price), then XAG, XPT, XPD, DXY
+  type TapeItem = { sym: string; label: string; price: number; change: number; changePct: number };
+  const items: TapeItem[] = [];
+
+  if (goldTick) {
+    items.push({
+      sym: 'XAU/USD',
+      label: 'GOLD',
+      price: goldTick.price,
+      change: goldTick.change,
+      changePct: goldTick.changePct,
+    });
+  }
+
+  const ORDER = ['XAG', 'XPT', 'XPD', 'DXY'];
+  for (const sym of ORDER) {
+    const m = metals.find(x => x.symbol === sym);
+    if (m && m.price > 0) {
+      items.push({
+        sym: sym === 'DXY' ? 'DXY' : `${sym}/USD`,
+        label: LABEL_MAP[sym] ?? sym,
+        price: m.price,
+        change: m.change,
+        changePct: m.changePct,
+      });
+    }
+  }
+
+  if (items.length === 0) return null;
+
+  // Triple-duplicate for seamless infinite scroll
+  const allItems = [...items, ...items, ...items];
+
+  return (
+    <div
+      className="overflow-hidden relative select-none"
+      style={{ background: '#05050e', height: 30, borderBottom: '1px solid #1a1a2e' }}
+    >
+      {/* Left fade */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-16 z-10 pointer-events-none"
+        style={{ background: 'linear-gradient(to right, #05050e 60%, transparent)' }}
+      />
+      {/* Right fade */}
+      <div
+        className="absolute right-0 top-0 bottom-0 w-16 z-10 pointer-events-none"
+        style={{ background: 'linear-gradient(to left, #05050e 60%, transparent)' }}
+      />
+
+      <div
+        className="flex items-center h-full whitespace-nowrap"
+        style={{ animation: 'bbTape 55s linear infinite', willChange: 'transform' }}
+      >
+        {allItems.map((item, i) => {
+          const up = item.change >= 0;
+          const color = up ? '#26a69a' : '#ef5350';
+          const arrow = up ? '▲' : '▼';
+          return (
+            <React.Fragment key={i}>
+              <span className="flex items-center gap-[7px] px-5 text-[11px] font-mono leading-none">
+                {/* Label */}
+                <span style={{ color: '#f0b90b', fontWeight: 700, letterSpacing: '0.06em' }}>
+                  {item.label}
+                </span>
+                {/* Price */}
+                <span style={{ color: '#e0e3eb', fontWeight: 600 }}>
+                  {fmtCompact(item.price, item.label)}
+                </span>
+                {/* Change */}
+                <span style={{ color }} className="flex items-center gap-[3px]">
+                  <span style={{ fontSize: 9 }}>{arrow}</span>
+                  <span>{Math.abs(item.changePct).toFixed(2)}%</span>
+                </span>
+              </span>
+              {/* Bloomberg dot separator */}
+              <span style={{ color: '#2a2a3e', fontSize: 16, lineHeight: 1 }}>◆</span>
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      <style>{`
+        @keyframes bbTape {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-33.333%); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Main LiveTicker ───────────────────────────────────────────────────────────
+function useUtcClock() {
+  const [time, setTime] = useState(() =>
+    new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' })
+  );
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTime(new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'UTC' }));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
+}
+
+interface LiveFeedTick {
+  symbol: string;
+  price: number;
+  bid?: number;
+  ask?: number;
+  changePct?: number;
+  timestamp: number;
+}
+
+export function LiveTicker() {
+  const [liveTick, setLiveTick] = useState<LiveFeedTick | null>(null);
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevPriceRef = useRef<number | null>(null);
+  const utcTime = useUtcClock();
+  const { getToken } = useAuth();
+
+  // Baseline 24h stats (Yahoo-sourced) used to fill high/low/open/change
+  // for the free shared live-price feed.
+  const { data: snapshot } = useQuery<{ open24h: number; high24h: number; low24h: number } | null>({
+    queryKey: ['xauusd/price-snapshot'],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/api/xauusd/price`, { credentials: 'include' });
+      if (!r.ok) return null;
+      return r.json();
+    },
+    refetchInterval: 60000,
+    staleTime: 55000,
+    retry: 2,
+  });
+
+  const { data: metals = [] } = useQuery<MetalQuote[]>({
+    queryKey: ['xauusd/metals'],
+    queryFn: async () => {
+      const token = await getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const r = await fetch(`${API_BASE}/api/xauusd/metals`, {
+        credentials: 'include',
+        headers,
+      });
+      if (!r.ok) return [];
+      const d = await r.json();
+      return Array.isArray(d) ? d : [];
+    },
+    refetchInterval: 30000,
+    staleTime: 25000,
+    retry: 2,
+  });
+
+  // ── Shared free live-price feed (works for every user) ─────────────────────
+  // Plain EventSource is fine here — the endpoint is a public broadcast and
+  // needs no Authorization header.
+  useEffect(() => {
+    let es: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    let mounted = true;
+
+    function connect() {
+      if (!mounted) return;
+      es = new EventSource(`${API_BASE}/api/xauusd/live-price`, { withCredentials: true });
+
+      es.onopen = () => { if (mounted) { setLiveConnected(true); retryCount = 0; } };
+
+      es.onmessage = (e) => {
+        try {
+          const data: LiveFeedTick = JSON.parse(e.data);
+          if (mounted) setLiveTick(data);
+        } catch { /* ignore parse errors */ }
+      };
+
+      es.onerror = () => {
+        if (mounted) setLiveConnected(false);
+        es?.close();
+        const delay = Math.min(1500 * 1.5 ** retryCount, 12000);
+        retryCount = Math.min(retryCount + 1, 6);
+        retryTimer = setTimeout(connect, delay);
+      };
+    }
+
+    connect();
+    return () => {
+      mounted = false;
+      es?.close();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, []);
+
+  // ── Live tick from the free shared feed (baseline 24h stats filled in
+  // from the snapshot) ────────────────────────────────────────────────────
+  const tick: TickData | null = React.useMemo(() => {
+    if (liveTick) {
+      const open = snapshot?.open24h ?? liveTick.price;
+      const change = liveTick.price - open;
+      const changePct = liveTick.changePct ?? (open ? (change / open) * 100 : 0);
+      return {
+        price: liveTick.price,
+        change,
+        changePct,
+        high24h: snapshot?.high24h ?? Math.max(liveTick.price, open),
+        low24h: snapshot?.low24h ?? Math.min(liveTick.price, open),
+        open24h: open,
+        timestamp: liveTick.timestamp,
+        source: 'live',
+      };
+    }
+    return null;
+  }, [liveTick, snapshot]);
+
+  const connected = liveConnected;
+
+  // Flash on price change, driven off the merged tick
+  useEffect(() => {
+    if (!tick) return;
+    const prev = prevPriceRef.current;
+    const dir = prev !== null
+      ? tick.price > prev ? 'up' : tick.price < prev ? 'down' : null
+      : null;
+    if (dir) {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      setFlash(dir);
+      flashTimer.current = setTimeout(() => setFlash(null), 600);
+    }
+    prevPriceRef.current = tick.price;
+  }, [tick]);
+
+  const isUp = tick ? tick.change >= 0 : true;
+  const priceColor =
+    flash === 'up'   ? '#26a69a' :
+    flash === 'down' ? '#ef5350' :
+    isUp             ? '#26a69a' : '#ef5350';
+
+  // DXY from metals list
+  const dxy = (metals as MetalQuote[]).find(m => m.symbol === 'DXY');
+  // Other precious metals (excluding Gold)
+  const metalsList = (metals as MetalQuote[]).filter(m => m.symbol !== 'XAU' && m.symbol !== 'DXY' && m.price > 0);
+
+  return (
+    <div className="flex flex-col rounded-lg overflow-hidden border border-[#1a1a2e]" style={{ background: '#0d0d14' }}>
+      {/* Bloomberg-style scrolling tape */}
+      <BloombergTape metals={metals as MetalQuote[]} goldTick={tick} />
+
+      {/* Main XAU/USD row */}
+      <div
+        className={cn(
+          'relative overflow-hidden transition-colors duration-300',
+          flash === 'up'   ? 'border-l-2 border-[#26a69a]' :
+          flash === 'down' ? 'border-l-2 border-[#ef5350]' :
+          'border-l-2 border-[#f0b90b]'
+        )}
+      >
+        {/* Flash overlay */}
+        {flash && (
+          <div
+            className={cn(
+              'absolute inset-0 pointer-events-none transition-opacity duration-300',
+              flash === 'up' ? 'bg-[#26a69a]' : 'bg-[#ef5350]'
+            )}
+            style={{ opacity: 0.04 }}
+          />
+        )}
+
+        <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-0">
+          {/* Symbol + price */}
+          <div className="flex items-center gap-5 flex-shrink-0">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[11px] font-bold text-[#f0b90b] font-mono tracking-[0.2em] uppercase">
+                  Gold / US Dollar
+                </span>
+                <span className={cn(
+                  'flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-mono border',
+                  connected
+                    ? 'bg-[#26a69a]/10 text-[#26a69a] border-[#26a69a]/20'
+                    : 'bg-[#2a2a3e] text-[#758696] border-[#2a2a3e]'
+                )}>
+                  {connected
+                    ? <Activity className="w-2.5 h-2.5 animate-pulse" />
+                    : <WifiOff className="w-2.5 h-2.5" />
+                  }
+                  {connected ? 'LIVE' : 'CONNECTING'}
+                </span>
+                {tick?.tickCount !== undefined && (
+                  <span className="text-[9px] font-mono text-[#758696]">#{tick.tickCount}</span>
+                )}
+              </div>
+              {tick ? (
+                <div className="flex items-baseline gap-3">
+                  <span
+                    className="text-3xl sm:text-4xl font-mono font-bold tracking-tight transition-colors duration-150"
+                    style={{ color: priceColor }}
+                  >
+                    {fmt(tick.price)}
+                  </span>
+                  <div className="flex flex-col">
+                    <span className={cn(
+                      'text-sm font-mono flex items-center font-semibold leading-tight',
+                      isUp ? 'text-[#26a69a]' : 'text-[#ef5350]'
+                    )}>
+                      {isUp ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                      {isUp ? '+' : ''}{fmt(tick.change)}
+                    </span>
+                    <span className={cn(
+                      'text-xs font-mono font-semibold',
+                      isUp ? 'text-[#26a69a]' : 'text-[#ef5350]'
+                    )}>
+                      ({isUp ? '+' : ''}{fmt(tick.changePct, 3)}%)
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-10 w-48 rounded bg-[#1a1a2e] animate-pulse mt-1" />
+              )}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="hidden sm:block w-px h-12 bg-[#2a2a3e] mx-6" />
+
+          {/* XAU stats */}
+          {tick && (
+            <div className="flex flex-row gap-5 sm:gap-7 flex-wrap">
+              <StatItem label="24H HIGH" value={fmt(tick.high24h)} positive />
+              <StatItem label="24H LOW"  value={fmt(tick.low24h)}  negative />
+              <StatItem label="24H OPEN" value={fmt(tick.open24h)} />
+              {tick.spread !== undefined && (
+                <StatItem label="SPREAD" value={tick.spread.toFixed(1)} />
+              )}
+            </div>
+          )}
+
+          {/* Divider before metals */}
+          {(metalsList.length > 0 || dxy) && (
+            <div className="hidden xl:block w-px h-12 bg-[#2a2a3e] mx-6" />
+          )}
+
+          {/* Precious metals inline */}
+          {metalsList.length > 0 && (
+            <div className="hidden xl:flex flex-row gap-6 flex-wrap">
+              {metalsList.map(m => (
+                <MetalItem key={m.symbol} metal={m} />
+              ))}
+            </div>
+          )}
+
+          {/* Divider before DXY */}
+          {dxy && dxy.price > 0 && (
+            <div className="hidden xl:block w-px h-12 bg-[#2a2a3e] mx-4" />
+          )}
+
+          {/* DXY */}
+          {dxy && dxy.price > 0 && (
+            <div className="hidden xl:flex flex-col gap-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-mono font-bold text-[#f0b90b] uppercase tracking-widest">
+                  DXY
+                </span>
+                <span className={cn(
+                  'text-[9px] font-mono',
+                  dxy.change >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'
+                )}>
+                  {dxy.change >= 0 ? '▲' : '▼'}{Math.abs(dxy.changePct).toFixed(2)}%
+                </span>
+              </div>
+              <span className={cn(
+                'text-sm font-mono font-semibold',
+                dxy.change >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'
+              )}>
+                {dxy.price.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+              </span>
+            </div>
+          )}
+
+          {/* Live UTC Clock */}
+          <div className="sm:ml-auto text-[10px] font-mono shrink-0 flex flex-col items-end gap-0.5">
+            <span className="text-[#758696] text-[9px] uppercase tracking-widest">UTC</span>
+            <span className="text-[#d1d4dc] font-bold tabular-nums text-[13px]">{utcTime}</span>
+          </div>
+        </div>
+
+        {/* Mobile metals + DXY row */}
+        {(metalsList.length > 0 || (dxy && dxy.price > 0)) && (
+          <div className="xl:hidden flex gap-4 px-4 pb-3 flex-wrap">
+            {metalsList.map(m => (
+              <MetalItem key={m.symbol} metal={m} compact />
+            ))}
+            {dxy && dxy.price > 0 && (
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-mono font-bold text-[#f0b90b] uppercase tracking-widest">DXY</span>
+                  <span className={cn('text-[9px] font-mono', dxy.change >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
+                    {dxy.change >= 0 ? '▲' : '▼'}{Math.abs(dxy.changePct).toFixed(2)}%
+                  </span>
+                </div>
+                <span className={cn('text-sm font-mono font-semibold', dxy.change >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
+                  {dxy.price.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatItem({ label, value, positive, negative }: {
+  label: string; value: string; positive?: boolean; negative?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[9px] font-mono font-bold text-[#758696] uppercase tracking-widest">{label}</span>
+      <span className={cn(
+        'text-sm font-mono font-semibold',
+        positive ? 'text-[#26a69a]' :
+        negative ? 'text-[#ef5350]' :
+        'text-[#d1d4dc]'
+      )}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function MetalItem({ metal, compact }: { metal: MetalQuote; compact?: boolean }) {
+  const isUp = metal.change >= 0;
+  return (
+    <div className={cn('flex flex-col gap-0.5', compact ? '' : '')}>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[9px] font-mono font-bold text-[#758696] uppercase tracking-widest">
+          {metal.symbol}/USD
+        </span>
+        <span className={cn('text-[9px] font-mono', isUp ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
+          {isUp ? '▲' : '▼'}{Math.abs(metal.changePct).toFixed(2)}%
+        </span>
+      </div>
+      <span className={cn('text-sm font-mono font-semibold', isUp ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
+        {metal.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </span>
+    </div>
+  );
+}

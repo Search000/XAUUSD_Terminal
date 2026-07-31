@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/admin/"
+title = "XAUUSD Admin Panel"
+version = "1.0.0"
+id = "artifacts/admin-panel"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/admin/" ]
+localPort = 20130
+
+[services.development]
+run = "pnpm --filter @workspace/admin-panel run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/admin-panel", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/admin-panel/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20130"
+BASE_PATH = "/admin/"

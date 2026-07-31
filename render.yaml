@@ -1,0 +1,44 @@
+services:
+  # ── API Server (Node.js Web Service) ──────────────────────────────────────
+  - type: web
+    name: xauusd-terminal-api
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: >
+      npx --yes pnpm@10.26.1 install --frozen-lockfile &&
+      npx --yes pnpm@10.26.1 --filter @workspace/api-server run build
+    startCommand: >
+      npx --yes pnpm@10.26.1 --filter @workspace/api-server run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: false
+        value: 10000
+      - key: DATABASE_URL
+        sync: false          # set manually in Render dashboard
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+
+  # ── Trading Journal Frontend (Static Site) ────────────────────────────────
+  - type: web
+    name: xauusd-terminal-journal
+    runtime: static
+    region: singapore
+    plan: free
+    buildCommand: >
+      npx --yes pnpm@10.26.1 install --frozen-lockfile &&
+      PORT=3000 BASE_PATH=/ npx --yes pnpm@10.26.1 --filter @workspace/trading-journal run build
+    staticPublishPath: artifacts/trading-journal/dist/public
+    envVars:
+      - key: VITE_API_URL
+        sync: false          # set to your API server URL, e.g. https://xauusd-terminal-api-uq6u.onrender.com
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
