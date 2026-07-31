@@ -24,6 +24,8 @@ services:
         sync: false
       - key: NEWS_API_KEY
         sync: false          # NewsAPI.org key for /api/xauusd/news — falls back to static feed if unset
+      - key: CALENDAR_API_KEY
+        sync: false          # Trading Economics "client:secret" key for /api/xauusd/calendar — falls back to static feed if unset
 
   # ── Trading Journal Frontend (Static Site) ────────────────────────────────
   - type: web

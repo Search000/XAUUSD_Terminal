@@ -642,15 +642,19 @@ router.get("/xauusd/news", async (_req, res) => {
   }
 });
 
-// GET /api/xauusd/calendar
-router.get("/xauusd/calendar", async (req, res) => {
+// ─── Calendar cache (1 hr TTL — calendar data doesn't change often intraday) ──
+let calendarCache: any = null;
+let calendarCacheAt = 0;
+const CALENDAR_TTL = 60 * 60 * 1000;
+
+const FALLBACK_CALENDAR = () => {
   const d = (n: number) => {
     const dt = new Date();
     dt.setDate(dt.getDate() + n);
     return dt.toISOString().split("T")[0];
   };
 
-  const events = [
+  return [
     {
       id: "powell-speech",
       title: "Fed Chair Powell Speaks",
@@ -716,9 +720,135 @@ router.get("/xauusd/calendar", async (req, res) => {
       description: "The Federal Reserve's preferred inflation measure.",
       goldImpact: "The most reliably bullish gold catalyst among inflation data when cooler than expected.",
     },
-  ];
+  ].sort((a, b) => a.date.localeCompare(b.date));
+};
 
-  res.json(events.sort((a, b) => a.date.localeCompare(b.date)));
+// Only these USD event types matter for a gold terminal — everything else
+// (regional PMIs, other-currency prints, low-impact housing data, etc.)
+// gets filtered out even if the upstream feed marks it medium/high.
+const GOLD_RELEVANT_KEYWORDS = [
+  "fed", "fomc", "powell", "rate decision", "interest rate",
+  "cpi", "inflation", "pce", "ppi",
+  "non-farm", "nonfarm", "payroll", "unemployment", "jobless", "employment",
+  "gdp", "retail sales", "consumer confidence", "ism manufacturing", "ism services",
+];
+
+// The upstream feed doesn't provide a gold-specific explanation, so we keep
+// a manual lookup by event type — same list of event families as before,
+// just applied to whatever the live feed's title matches.
+function goldImpactFor(title: string): string {
+  const t = title.toLowerCase();
+  if (t.includes("powell") || t.includes("fed chair") || t.includes("fed speak"))
+    return "Extremely high impact. Any hint of rate cuts is typically bullish for XAU/USD.";
+  if (t.includes("fomc") || t.includes("interest rate") || t.includes("rate decision"))
+    return "The highest-impact event for gold. A surprise cut is strongly bullish for XAU/USD.";
+  if (t.includes("core pce") || t.includes("pce price"))
+    return "The most reliably bullish gold catalyst among inflation data when cooler than expected.";
+  if (t.includes("cpi"))
+    return "Higher-than-expected CPI → gold falls. Lower-than-expected CPI → gold rallies.";
+  if (t.includes("ppi"))
+    return "Producer-side inflation gauge — feeds into Fed inflation expectations; hotter prints pressure gold.";
+  if (t.includes("non-farm") || t.includes("nonfarm") || t.includes("payroll"))
+    return "Strong NFP → USD rallies → gold sells off. Weak NFP → gold rallies.";
+  if (t.includes("unemployment") || t.includes("jobless"))
+    return "Rising unemployment raises Fed-cut odds, typically bullish for gold; a tight labor market is bearish.";
+  if (t.includes("gdp"))
+    return "Strong growth supports a hawkish Fed (bearish gold); weak growth raises cut odds (bullish gold).";
+  if (t.includes("retail sales"))
+    return "Strong consumer spending supports a hawkish Fed stance, a headwind for non-yielding gold.";
+  if (t.includes("consumer confidence") || t.includes("consumer sentiment"))
+    return "Weak sentiment raises recession/cut odds — usually modestly bullish for gold.";
+  if (t.includes("ism") || t.includes("pmi"))
+    return "Weak manufacturing/services data raises Fed-cut odds, generally supportive for gold.";
+  return "USD-denominated macro release — surprises versus forecast move the dollar and, inversely, gold.";
+}
+
+async function fetchLiveCalendar(): Promise<any[]> {
+  const apiKey = process.env["CALENDAR_API_KEY"];
+  if (!apiKey) {
+    throw new Error("CALENDAR_API_KEY not set");
+  }
+
+  // Trading Economics calendar API — key format is "client:secret" from
+  // https://tradingeconomics.com/api (free tier available).
+  const today = new Date();
+  const from = today.toISOString().split("T")[0];
+  const until = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+
+  const url =
+    `https://api.tradingeconomics.com/calendar/country/united%20states` +
+    `?d1=${from}&d2=${until}&c=${encodeURIComponent(apiKey)}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  let data: any;
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Calendar feed error: ${res.status}`);
+    data = await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const rows: any[] = Array.isArray(data) ? data : [];
+
+  const impactFromImportance = (n: number): "low" | "medium" | "high" =>
+    n >= 3 ? "high" : n === 2 ? "medium" : "low";
+
+  const events = rows
+    .filter((r) => (r?.Importance ?? 0) >= 2) // medium + high only
+    .map((r) => {
+      const title: string = r?.Event ?? r?.Category ?? "Economic Event";
+      const dt = new Date(r?.Date ?? Date.now());
+      return {
+        id: `${r?.CalendarId ?? title}-${dt.toISOString()}`,
+        title,
+        country: "USD",
+        date: dt.toISOString().split("T")[0],
+        time: dt.toISOString().split("T")[1]?.slice(0, 5) ?? "00:00",
+        impact: impactFromImportance(r?.Importance ?? 2),
+        forecast: r?.Forecast != null && r.Forecast !== "" ? String(r.Forecast) : null,
+        previous: r?.Previous != null && r.Previous !== "" ? String(r.Previous) : null,
+        actual: r?.Actual != null && r.Actual !== "" ? String(r.Actual) : null,
+        description: r?.Category
+          ? `${r.Category} release from the ${r?.Source ?? "US"} calendar.`
+          : "Scheduled US economic data release.",
+        goldImpact: goldImpactFor(title),
+      };
+    })
+    .filter((e) => {
+      const t = e.title.toLowerCase();
+      return GOLD_RELEVANT_KEYWORDS.some((k) => t.includes(k));
+    });
+
+  events.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return events;
+}
+
+// GET /api/xauusd/calendar
+router.get("/xauusd/calendar", async (_req, res) => {
+  const now = Date.now();
+  if (calendarCache && now - calendarCacheAt < CALENDAR_TTL) {
+    res.json(calendarCache);
+    return;
+  }
+
+  try {
+    const events = await fetchLiveCalendar();
+    if (events.length === 0) throw new Error("Live calendar feed returned 0 relevant events");
+    calendarCache = events;
+    calendarCacheAt = now;
+    res.json(calendarCache);
+  } catch (err) {
+    logger.warn({ err }, "xauusd/calendar: live feed unavailable, serving fallback");
+    if (calendarCache) {
+      res.json(calendarCache);
+      return;
+    }
+    res.json(FALLBACK_CALENDAR());
+  }
 });
 
 // GET /api/xauusd/summary
