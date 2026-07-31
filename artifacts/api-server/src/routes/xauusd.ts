@@ -514,53 +514,6 @@ let newsCache: any = null;
 let newsCacheAt = 0;
 const NEWS_TTL = 5 * 60 * 1000;
 
-// Static fallback used when NEWS_API_KEY is missing or the live fetch fails.
-const FALLBACK_NEWS = () => {
-  const now = Date.now();
-  return [
-    {
-      id: "n1",
-      title: "Gold Prices Steady as Markets Await Fed Minutes",
-      source: "Market News",
-      url: "#",
-      publishedAt: new Date(now - 3_600_000).toISOString(),
-      sentiment: "neutral",
-    },
-    {
-      id: "n2",
-      title: "XAU/USD Holds Ground as Dollar Index Retreats",
-      source: "Market Analysis",
-      url: "#",
-      publishedAt: new Date(now - 7_200_000).toISOString(),
-      sentiment: "bullish",
-    },
-    {
-      id: "n3",
-      title: "Central Banks Continue Gold Accumulation in Q2",
-      source: "Market Report",
-      url: "#",
-      publishedAt: new Date(now - 14_400_000).toISOString(),
-      sentiment: "bullish",
-    },
-    {
-      id: "n4",
-      title: "Fed Rate Decision to Drive Precious Metals Next Week",
-      source: "Market Update",
-      url: "#",
-      publishedAt: new Date(now - 21_600_000).toISOString(),
-      sentiment: "neutral",
-    },
-    {
-      id: "n5",
-      title: "Gold Technical Analysis: Support at Key Fibonacci Level",
-      source: "Technical Analysis",
-      url: "#",
-      publishedAt: new Date(now - 28_800_000).toISOString(),
-      sentiment: "neutral",
-    },
-  ];
-};
-
 // NewsAPI.org "everything" endpoint — free/dev tier is enough for a 5-min-cached feed.
 const NEWS_API_URL = "https://newsapi.org/v2/everything";
 const NEWS_QUERY =
@@ -633,12 +586,13 @@ router.get("/xauusd/news", async (_req, res) => {
     newsCacheAt = now;
     res.json(newsCache);
   } catch (err) {
-    logger.warn({ err }, "xauusd/news: live feed unavailable, serving fallback");
+    logger.warn({ err }, "xauusd/news: live feed unavailable, no cached data to serve");
     if (newsCache) {
       res.json(newsCache);
       return;
     }
-    res.json(FALLBACK_NEWS());
+    // No live data and nothing cached — return empty rather than fabricated headlines.
+    res.json([]);
   }
 });
 
@@ -646,82 +600,6 @@ router.get("/xauusd/news", async (_req, res) => {
 let calendarCache: any = null;
 let calendarCacheAt = 0;
 const CALENDAR_TTL = 60 * 60 * 1000;
-
-const FALLBACK_CALENDAR = () => {
-  const d = (n: number) => {
-    const dt = new Date();
-    dt.setDate(dt.getDate() + n);
-    return dt.toISOString().split("T")[0];
-  };
-
-  return [
-    {
-      id: "powell-speech",
-      title: "Fed Chair Powell Speaks",
-      country: "USD",
-      date: d(0),
-      time: "15:00",
-      impact: "high",
-      forecast: null,
-      previous: null,
-      actual: null,
-      description: "Federal Reserve Chair Jerome Powell delivers remarks at a public event.",
-      goldImpact: "Extremely high impact. Any hint of rate cuts is typically bullish for XAU/USD.",
-    },
-    {
-      id: "fomc-rate",
-      title: "FOMC Interest Rate Decision",
-      country: "USD",
-      date: d(1),
-      time: "18:00",
-      impact: "high",
-      forecast: "5.25%",
-      previous: "5.25%",
-      actual: null,
-      description: "The Federal Open Market Committee votes on the target federal funds rate.",
-      goldImpact: "The highest-impact event for gold. A surprise cut is strongly bullish for XAU/USD.",
-    },
-    {
-      id: "cpi-us",
-      title: "US CPI m/m",
-      country: "USD",
-      date: d(2),
-      time: "12:30",
-      impact: "high",
-      forecast: "0.3%",
-      previous: "0.2%",
-      actual: null,
-      description: "The Consumer Price Index measures the monthly change in the price of goods and services.",
-      goldImpact: "Higher-than-expected CPI → gold falls. Lower-than-expected CPI → gold rallies.",
-    },
-    {
-      id: "nfp",
-      title: "Non-Farm Payrolls",
-      country: "USD",
-      date: d(3),
-      time: "12:30",
-      impact: "high",
-      forecast: "180K",
-      previous: "175K",
-      actual: null,
-      description: "NFP reports the monthly change in the number of employed people in the US.",
-      goldImpact: "Strong NFP → USD rallies → gold sells off. Weak NFP → gold rallies.",
-    },
-    {
-      id: "pce",
-      title: "Core PCE Price Index m/m",
-      country: "USD",
-      date: d(4),
-      time: "12:30",
-      impact: "high",
-      forecast: "0.2%",
-      previous: "0.3%",
-      actual: null,
-      description: "The Federal Reserve's preferred inflation measure.",
-      goldImpact: "The most reliably bullish gold catalyst among inflation data when cooler than expected.",
-    },
-  ].sort((a, b) => a.date.localeCompare(b.date));
-};
 
 // Only these USD event types matter for a gold terminal — everything else
 // (regional PMIs, other-currency prints, low-impact housing data, etc.)
@@ -860,12 +738,13 @@ router.get("/xauusd/calendar", async (_req, res) => {
     calendarCacheAt = now;
     res.json(calendarCache);
   } catch (err) {
-    logger.warn({ err }, "xauusd/calendar: live feed unavailable, serving fallback");
+    logger.warn({ err }, "xauusd/calendar: live feed unavailable, no cached data to serve");
     if (calendarCache) {
       res.json(calendarCache);
       return;
     }
-    res.json(FALLBACK_CALENDAR());
+    // No live data and nothing cached — return empty rather than fabricated events.
+    res.json([]);
   }
 });
 

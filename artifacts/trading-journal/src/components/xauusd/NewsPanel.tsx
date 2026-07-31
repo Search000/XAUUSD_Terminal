@@ -224,7 +224,9 @@ export function NewsPanel() {
               </a>
             ))}
             {filtered.length === 0 && (
-              <div className="p-8 text-center text-xs text-muted-foreground">No {filter} news found</div>
+              <div className="p-8 text-center text-xs text-muted-foreground">
+                {scored.length === 0 ? "No news available right now" : `No ${filter} news found`}
+              </div>
             )}
           </div>
         )}
