@@ -41,12 +41,7 @@ const LANDING_CSS = `
   .lp-cta{background:var(--gold);color:#08090A;padding:8px 16px;font-weight:700;font-size:11.5px;border-radius:3px;text-decoration:none;letter-spacing:.01em;}
   .lp-cta:hover{background:#ffb43d;}
 
-  .lp-shell{display:grid;grid-template-columns:220px 1fr;max-width:1240px;margin:0 auto;}
-  .lp-sidebar{border-right:1px solid var(--border);padding:28px 0;position:sticky;top:56px;align-self:start;height:calc(100vh - 56px);}
-  .lp-sidebar .grp{padding:0 20px;margin-bottom:26px;}
-  .lp-sidebar .grp .h{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted2);margin-bottom:10px;}
-  .lp-sidebar .item{display:flex;justify-content:space-between;padding:7px 0;font-size:12.5px;color:var(--muted);border-bottom:1px solid transparent;cursor:default;}
-  .lp-sidebar .item.active{color:var(--gold);}
+  .lp-shell{max-width:1240px;margin:0 auto;}
 
   .lp-main{padding:0 28px;}
 
@@ -115,8 +110,6 @@ const LANDING_CSS = `
   .lp-footer{padding:26px 0;color:var(--muted);font-size:11px;display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;}
 
   @media (max-width: 900px){
-    .lp-shell{grid-template-columns:1fr;}
-    .lp-sidebar{display:none;}
     .lp-herotop{grid-template-columns:1fr;}
     .lp-termgrid{grid-template-columns:repeat(3,1fr);}
     .lp-fgrid{grid-template-columns:repeat(2,1fr);}
@@ -164,33 +157,6 @@ export default function LandingPage() {
       </nav>
 
       <div className="lp-shell">
-        <aside className="lp-sidebar">
-          <div className="grp">
-            <div className="h">Journal</div>
-            <div className="item active">Execution</div>
-            <div className="item">Trades</div>
-            <div className="item">Mistake Log</div>
-          </div>
-          <div className="grp">
-            <div className="h">Performance</div>
-            <div className="item">Score</div>
-            <div className="item">Reports</div>
-          </div>
-          <div className="grp">
-            <div className="h">Market</div>
-            <div className="item">XAUUSD Monitor</div>
-            <div className="item">Correlations</div>
-          </div>
-          <div className="grp">
-            <div className="h">Capital</div>
-            <div className="item">Investors</div>
-          </div>
-          <div className="grp">
-            <div className="h">Account</div>
-            <div className="item">Pricing</div>
-          </div>
-        </aside>
-
         <main className="lp-main">
           <section className="lp-hero" style={{ borderBottom: "none" }}>
             <div className="lp-herotop">
