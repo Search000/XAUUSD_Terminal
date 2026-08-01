@@ -716,6 +716,27 @@ function formatFredValue(raw: string, format: "percent" | "thousands" | "rate"):
   return raw;
 }
 
+// FRED's release_id 101 ("FOMC Press Release") is NOT limited to the 8
+// actual rate-decision days a year — it fires for minutes, speeches, and
+// other FOMC-tagged communications almost daily, which was causing the
+// same "FOMC Press Release / Rate Decision" event (with an identical,
+// unchanged FEDFUNDS rate) to show up on nearly every calendar day.
+// The real decision dates are published by the Fed well in advance, so
+// they're hardcoded here instead (statement day = 2nd day of each
+// two-day meeting, 2:00pm ET). Source: federalreserve.gov press releases
+// announcing the 2025/2026/2027 tentative meeting schedules.
+const FOMC_STATEMENT_DATES = [
+  // 2025
+  "2025-01-29", "2025-03-19", "2025-05-07", "2025-06-18",
+  "2025-07-30", "2025-09-17", "2025-10-29", "2025-12-10",
+  // 2026
+  "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17",
+  "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09",
+  // 2027 (tentative)
+  "2027-01-27", "2027-03-17", "2027-04-28", "2027-06-09",
+  "2027-07-28", "2027-09-15", "2027-10-27", "2027-12-08",
+];
+
 async function fredGet(apiKey: string, path: string, params: Record<string, string | number>): Promise<any> {
   const url = new URL(`https://api.stlouisfed.org/fred/${path}`);
   url.searchParams.set("api_key", apiKey);
@@ -752,15 +773,19 @@ async function fetchFredCalendar(): Promise<any[]> {
 
   for (const rel of FRED_RELEASES) {
     try {
-      const datesData = await fredGet(apiKey, "release/dates", {
-        release_id: rel.id,
-        realtime_start: from,
-        realtime_end: until,
-        include_release_dates_with_no_data: "false",
-      });
-      const dates: Array<{ date: string }> = (datesData?.release_dates ?? [])
-        .filter((d: any) => d?.date >= from && d?.date <= until)
-        .sort((a: any, b: any) => a.date.localeCompare(b.date));
+      // FOMC: use the hardcoded real decision-day list instead of FRED's
+      // noisy release/dates feed (see FOMC_STATEMENT_DATES comment above).
+      const dates: Array<{ date: string }> =
+        rel.id === 101
+          ? FOMC_STATEMENT_DATES.filter((d) => d >= from && d <= until).map((d) => ({ date: d }))
+          : ((await fredGet(apiKey, "release/dates", {
+              release_id: rel.id,
+              realtime_start: from,
+              realtime_end: until,
+              include_release_dates_with_no_data: "false",
+            }))?.release_dates ?? [])
+              .filter((d: any) => d?.date >= from && d?.date <= until)
+              .sort((a: any, b: any) => a.date.localeCompare(b.date));
       if (dates.length === 0) continue;
 
       // Walk releases oldest -> newest. For each release date that's already
