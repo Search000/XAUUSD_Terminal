@@ -11,6 +11,12 @@ const fmtN = (n: unknown): string => {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+// Manual broker-quote adjustment — every price shown in this panel is offset
+// by this fixed amount (e.g. 70 in → minus 64 → shows 6). Change this one
+// number if the broker's real quote offset changes; it applies everywhere
+// in the panel (current price, S/R levels, pivot, SMA50 in the comment line).
+const PRICE_ADJUST = -64;
+
 // ─── Analysis text ────────────────────────────────────────────────────────────
 function buildAnalysis(d: any) {
   const price  = typeof d.currentPrice === 'number' ? d.currentPrice : 0;
@@ -166,12 +172,14 @@ export function TechnicalsPanel() {
   // levels (which is what actually matters for the analysis) is unchanged
   // since every level shifts by the same amount.
   const offset = offsetRef.current ?? 0;
-  const shift = (v: unknown) => typeof v === 'number' ? v + offset : v;
+  const shift = (v: unknown) => typeof v === 'number' ? v + offset + PRICE_ADJUST : v;
   const data_ = {
     ...data,
     // "Current Price" itself always tracks the live tick in real time;
     // only the other levels use the frozen offset so they stay stable.
-    currentPrice: typeof livePrice === 'number' ? livePrice : shift(data.currentPrice),
+    // PRICE_ADJUST is still applied on top of the live tick so every price
+    // in this panel is consistently offset.
+    currentPrice: typeof livePrice === 'number' ? livePrice + PRICE_ADJUST : shift(data.currentPrice),
     r1: shift(data.r1),
     r2: shift(data.r2),
     s1: shift(data.s1),
