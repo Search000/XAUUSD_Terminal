@@ -675,13 +675,53 @@ function etWallTimeToUtcIso(dateStr: string, timeStr: string): string {
   return new Date(guessUtc + offset).toISOString();
 }
 
-// ─── FMP (financialmodelingprep.com) — calendar source ─────────────────────
-// Uses the current "stable" endpoint (legacy /api/v3 endpoints are dead as
-// of Aug 2025). Gives real forecast/previous/actual numbers.
-async function fetchFmpCalendar(): Promise<any[]> {
-  const apiKey = process.env["FMP_API_KEY"];
+// FRED (Federal Reserve Economic Data, St. Louis Fed) — 100% free, no paid
+// tier, unlimited requests. https://fred.stlouisfed.org/docs/api/api_key.html
+// (Switched back from FMP: FMP's economic-calendar endpoint returns 402
+// Payment Required on the free plan — premium-only, not usable here.)
+// FRED doesn't publish consensus "forecast" figures, so forecast is left
+// null rather than fabricated (real data-source limitation, not a bug).
+// "actual"/"previous" ARE available from FRED's vintage (realtime)
+// observation history and are populated below instead of always blank.
+//
+// releaseTimeEt = official U.S. Eastern-time release hour for that report
+// (FOMC statement/rate decision drops at 14:00 ET, not 08:30 ET).
+const FRED_RELEASES: Array<{
+  id: number;
+  title: string;
+  series: string;
+  impact: "low" | "medium" | "high";
+  releaseTimeEt: string;
+}> = [
+  { id: 10, title: "Consumer Price Index (CPI)", series: "CPIAUCSL", impact: "high", releaseTimeEt: "08:30" },
+  { id: 50, title: "Employment Situation (Non-Farm Payrolls)", series: "PAYEMS", impact: "high", releaseTimeEt: "08:30" },
+  { id: 53, title: "Gross Domestic Product (GDP)", series: "GDP", impact: "high", releaseTimeEt: "08:30" },
+  { id: 101, title: "FOMC Press Release / Rate Decision", series: "FEDFUNDS", impact: "high", releaseTimeEt: "14:00" },
+  { id: 46, title: "Producer Price Index (PPI)", series: "PPIACO", impact: "medium", releaseTimeEt: "08:30" },
+  { id: 9, title: "Retail Sales", series: "RSAFS", impact: "medium", releaseTimeEt: "08:30" },
+];
+
+async function fredGet(apiKey: string, path: string, params: Record<string, string | number>): Promise<any> {
+  const url = new URL(`https://api.stlouisfed.org/fred/${path}`);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("file_type", "json");
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url.toString(), { signal: controller.signal });
+    if (!res.ok) throw new Error(`FRED error: ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchFredCalendar(): Promise<any[]> {
+  const apiKey = process.env["FRED_API_KEY"];
   if (!apiKey) {
-    throw new Error("FMP_API_KEY not set");
+    throw new Error("FRED_API_KEY not set");
   }
 
   const today = new Date();
@@ -692,54 +732,69 @@ async function fetchFmpCalendar(): Promise<any[]> {
     .toISOString()
     .split("T")[0];
 
-  const url = `https://financialmodelingprep.com/stable/economic-calendar?from=${from}&to=${until}&apikey=${apiKey}`;
+  const events: any[] = [];
+  const todayStr = today.toISOString().split("T")[0];
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-  let data: any;
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`FMP error: ${res.status}`);
-    data = await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  for (const rel of FRED_RELEASES) {
+    try {
+      const datesData = await fredGet(apiKey, "release/dates", {
+        release_id: rel.id,
+        realtime_start: from,
+        realtime_end: until,
+        include_release_dates_with_no_data: "false",
+      });
+      const dates: Array<{ date: string }> = (datesData?.release_dates ?? [])
+        .filter((d: any) => d?.date >= from && d?.date <= until)
+        .sort((a: any, b: any) => a.date.localeCompare(b.date));
+      if (dates.length === 0) continue;
 
-  if (!Array.isArray(data)) throw new Error("FMP economic-calendar returned unexpected payload");
+      // Walk releases oldest -> newest. For each release date that's already
+      // happened, ask FRED what the series value was "as known on that date"
+      // (a vintage/realtime lookup) — that's the true "actual" print for
+      // that release. The actual from the prior release becomes "previous"
+      // for the next one, giving a correct chain instead of a single static
+      // "latest observation" reused for every row.
+      let runningPrevious: string | null = null;
 
-  const events = data
-    .filter((e: any) => e?.currency === "USD")
-    .filter((e: any) => {
-      const title = String(e?.event ?? "").toLowerCase();
-      return GOLD_RELEVANT_KEYWORDS.some((kw) => title.includes(kw));
-    })
-    .map((e: any) => {
-      const dateStr = String(e?.date ?? "").split(" ")[0] ?? "";
-      const timeStr = String(e?.date ?? "").split(" ")[1]?.slice(0, 5) ?? "08:30";
-      let datetimeUtc: string;
-      try {
-        datetimeUtc = new Date(e.date).toISOString();
-      } catch {
-        datetimeUtc = etWallTimeToUtcIso(dateStr, timeStr);
+      for (const d of dates) {
+        let actual: string | null = null;
+        if (d.date <= todayStr) {
+          try {
+            const obs = await fredGet(apiKey, "series/observations", {
+              series_id: rel.series,
+              realtime_start: d.date,
+              realtime_end: d.date,
+              sort_order: "desc",
+              limit: 1,
+            });
+            const val = obs?.observations?.[0]?.value;
+            if (val && val !== ".") actual = val;
+          } catch {
+            // vintage lookup is best-effort; leave actual null on failure
+          }
+        }
+
+        events.push({
+          id: `fred-${rel.id}-${d.date}`,
+          title: rel.title,
+          country: "USD",
+          date: d.date,
+          time: rel.releaseTimeEt,
+          datetimeUtc: etWallTimeToUtcIso(d.date, rel.releaseTimeEt),
+          impact: rel.impact,
+          forecast: null,
+          previous: runningPrevious,
+          actual,
+          description: `${rel.title} release, scheduled via the FRED (St. Louis Fed) release calendar.`,
+          goldImpact: goldImpactFor(rel.title),
+        });
+
+        if (actual !== null) runningPrevious = actual;
       }
-      const impact: "low" | "medium" | "high" =
-        e?.impact === "High" ? "high" : e?.impact === "Low" ? "low" : "medium";
-
-      return {
-        id: `fmp-${e?.event}-${dateStr}`.replace(/\s+/g, "_"),
-        title: e?.event ?? "Economic Event",
-        country: "USD",
-        date: dateStr,
-        time: timeStr,
-        datetimeUtc,
-        impact,
-        forecast: e?.estimate ?? e?.forecast ?? null,
-        previous: e?.previous ?? null,
-        actual: e?.actual ?? null,
-        description: `${e?.event ?? "Economic event"} release, scheduled via the FMP economic calendar.`,
-        goldImpact: goldImpactFor(String(e?.event ?? "")),
-      };
-    });
+    } catch (err) {
+      logger.warn({ err, release: rel.id }, "FRED release/dates fetch failed for one release");
+    }
+  }
 
   events.sort((a, b) => a.datetimeUtc.localeCompare(b.datetimeUtc));
   return events;
@@ -754,13 +809,13 @@ router.get("/xauusd/calendar", async (_req, res) => {
   }
 
   try {
-    const events = await fetchFmpCalendar();
-    if (events.length === 0) throw new Error("FMP calendar returned 0 relevant events");
+    const events = await fetchFredCalendar();
+    if (events.length === 0) throw new Error("FRED calendar returned 0 relevant events");
     calendarCache = events;
     calendarCacheAt = now;
     res.json(calendarCache);
   } catch (err) {
-    logger.warn({ err }, "xauusd/calendar: FMP feed unavailable, no cached data to serve");
+    logger.warn({ err }, "xauusd/calendar: FRED feed unavailable, no cached data to serve");
     if (calendarCache) {
       res.json(calendarCache);
       return;
