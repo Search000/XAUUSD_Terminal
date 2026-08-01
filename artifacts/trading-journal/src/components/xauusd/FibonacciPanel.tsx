@@ -64,7 +64,8 @@ function fmtPrice(n: number) {
 
 export function FibonacciPanel() {
   const [tf, setTf] = useState<Tf>('1h');
-  const spotPrice = useLivePrice();
+  const { price: spotPrice, marketOpen } = useLivePrice();
+  const marketClosed = marketOpen === false;
 
   const { data, isLoading } = useQuery<ChartData>({
     queryKey: ['xauusd/chart', tf],
@@ -73,7 +74,7 @@ export function FibonacciPanel() {
       if (!res.ok) throw new Error('fetch failed');
       return res.json();
     },
-    refetchInterval: 60_000,
+    refetchInterval: marketClosed ? false : 60_000,
     staleTime: 30_000,
   });
 

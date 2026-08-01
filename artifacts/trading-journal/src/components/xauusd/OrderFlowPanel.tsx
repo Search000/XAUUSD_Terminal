@@ -173,7 +173,8 @@ function PressureBar({ buyPct, sellPct }: { buyPct: number; sellPct: number }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function OrderFlowPanel() {
-  const livePrice = useLivePrice();
+  const { price: livePrice, marketOpen } = useLivePrice();
+  const marketClosed = marketOpen === false;
   // Uses existing /chart endpoint — no new backend needed
   const { data, isLoading, isError } = useQuery<{ candles: Candle[] }>({
     queryKey: ['xauusd/chart', '5m'],
@@ -182,7 +183,7 @@ export function OrderFlowPanel() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     },
-    refetchInterval: 60_000,
+    refetchInterval: marketClosed ? false : 60_000,
     staleTime:       55_000,
     retry: 1,
   });

@@ -206,6 +206,7 @@ export function ChartPanel() {
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveFlash, setLiveFlash] = useState<'up' | 'down' | null>(null);
   const [tickPulse, setTickPulse] = useState(false);
+  const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
   const dragRef = useRef<{ startX: number; startOff: number } | null>(null);
   const lastLiveRef = useRef<number | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -264,6 +265,10 @@ export function ChartPanel() {
             if (!dataLine) continue;
             try {
               const d = JSON.parse(dataLine.slice('data:'.length).trim());
+              if (typeof d.marketOpen === 'boolean' && mounted) setMarketOpen(d.marketOpen);
+              // Market closed: freeze the price/flash/pulse entirely — only
+              // the status flag above is allowed to change.
+              if (d.marketOpen === false) continue;
               if (typeof d.price === 'number') {
                 const prev = lastLiveRef.current;
                 const dir = prev !== null
@@ -312,7 +317,7 @@ export function ChartPanel() {
   const { data: chartData, isLoading } = useQuery({
     queryKey: ['xauusd/chart', timeframe],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/chart?interval=${timeframe}&range=${getRange(timeframe)}`, { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: 20_000,
+    refetchInterval: marketOpen === false ? false : 20_000,
   });
 
   const rawCandles: Candle[] = chartData?.candles ?? [];

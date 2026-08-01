@@ -121,7 +121,8 @@ function TrendIcon({ dir }: { dir: 'bull' | 'bear' | 'neutral' }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function TechnicalsPanel() {
-  const livePrice = useLivePrice();
+  const { price: livePrice, marketOpen } = useLivePrice();
+  const marketClosed = marketOpen === false;
   const { data, isLoading } = useQuery({
     queryKey: ['/api/xauusd/technicals'],
     queryFn: async () => {
@@ -130,7 +131,7 @@ export function TechnicalsPanel() {
       const d = await r.json();
       return d && typeof d === 'object' && 'rsi' in d ? d : null;
     },
-    refetchInterval: 60000,
+    refetchInterval: marketClosed ? false : 60000,
   });
 
   // Offset captured ONCE per backend fetch (not recomputed on every live
@@ -142,7 +143,7 @@ export function TechnicalsPanel() {
     lastDataRef.current = data;
     offsetRef.current = null; // needs recapture against the new fetch
   }
-  if (offsetRef.current === null && data && typeof livePrice === 'number' && typeof data.currentPrice === 'number') {
+  if (offsetRef.current === null && !marketClosed && data && typeof livePrice === 'number' && typeof data.currentPrice === 'number') {
     offsetRef.current = livePrice - data.currentPrice;
   }
 

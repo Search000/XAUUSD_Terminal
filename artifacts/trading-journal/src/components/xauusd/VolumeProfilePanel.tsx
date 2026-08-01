@@ -38,11 +38,12 @@ function fmtPrecise(n: number) {
 }
 
 export function VolumeProfilePanel() {
-  const livePrice = useLivePrice();
+  const { price: livePrice, marketOpen } = useLivePrice();
+  const marketClosed = marketOpen === false;
   const { data, isLoading, isError } = useQuery<VpData>({
     queryKey: ['xauusd-volume-profile'],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/volume-profile`, { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: marketClosed ? false : 5 * 60 * 1000,
     staleTime: 4 * 60 * 1000,
   });
 

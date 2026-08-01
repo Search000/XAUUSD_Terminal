@@ -175,6 +175,11 @@ export function LiveTicker() {
   const utcTime = useUtcClock();
   const { getToken } = useAuth();
 
+  // Nothing that only changes while the market trades should keep polling
+  // once it's closed — Yahoo's own snapshot is frozen over the weekend too,
+  // so this just avoids pointless requests rather than changing behavior.
+  const marketClosed = liveTick?.marketOpen === false;
+
   // Baseline 24h stats (Yahoo-sourced) used to fill high/low/open/change
   // for the free shared live-price feed.
   const { data: snapshot } = useQuery<{ open24h: number; high24h: number; low24h: number } | null>({
@@ -184,7 +189,7 @@ export function LiveTicker() {
       if (!r.ok) return null;
       return r.json();
     },
-    refetchInterval: 60000,
+    refetchInterval: marketClosed ? false : 60000,
     staleTime: 55000,
     retry: 2,
   });
@@ -203,7 +208,7 @@ export function LiveTicker() {
       const d = await r.json();
       return Array.isArray(d) ? d : [];
     },
-    refetchInterval: 30000,
+    refetchInterval: marketClosed ? false : 30000,
     staleTime: 25000,
     retry: 2,
   });
@@ -226,7 +231,15 @@ export function LiveTicker() {
       es.onmessage = (e) => {
         try {
           const data: LiveFeedTick = JSON.parse(e.data);
-          if (mounted) setLiveTick(data);
+          if (!mounted) return;
+          // Market closed: only let the status flag update, never the price/
+          // change fields — this is what actually freezes the ticker instead
+          // of just labelling a still-moving number as "closed".
+          if (data.marketOpen === false) {
+            setLiveTick(prev => (prev ? { ...prev, marketOpen: false } : data));
+          } else {
+            setLiveTick(data);
+          }
         } catch { /* ignore parse errors */ }
       };
 
@@ -270,7 +283,6 @@ export function LiveTicker() {
   }, [liveTick, snapshot]);
 
   const connected = liveConnected;
-  const marketClosed = tick?.marketOpen === false;
 
   // Flash on price change, driven off the merged tick — skipped while the
   // market is closed so a frozen price never "flashes" from a stale re-send.
