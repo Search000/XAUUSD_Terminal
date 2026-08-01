@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE } from '@/lib/api';
+import { useLivePrice } from '@/hooks/use-live-price';
 
 interface FcRow {
   label: string;
@@ -57,11 +58,12 @@ const STRUCTURE_META = {
 };
 
 export function FuturesCurvePanel() {
+  const { marketOpen } = useLivePrice();
   const { data, isLoading, isError } = useQuery<FcData>({
     queryKey: ['xauusd-futures-curve'],
     queryFn: () =>
       fetch(`${API_BASE}/api/xauusd/futures-curve`, { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: 3 * 60 * 1000,
+    refetchInterval: marketOpen === false ? false : 3 * 60 * 1000,
     staleTime: 2 * 60 * 1000,
   });
 

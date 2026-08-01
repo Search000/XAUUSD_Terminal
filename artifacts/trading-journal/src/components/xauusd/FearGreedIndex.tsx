@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE } from '@/lib/api';
+import { useLivePrice } from '@/hooks/use-live-price';
 import { cn } from '@/lib/utils';
 
 interface FearGreedData {
@@ -159,6 +160,7 @@ function CompRow({ label, value, bar, positive }: {
 }
 
 export function FearGreedIndex() {
+  const { marketOpen } = useLivePrice();
   const { data, isLoading } = useQuery<FearGreedData>({
     queryKey: ['xauusd/fear-greed'],
     queryFn: async () => {
@@ -166,7 +168,7 @@ export function FearGreedIndex() {
       if (!r.ok) throw new Error('fetch error');
       return r.json();
     },
-    refetchInterval: 5 * 60_000,
+    refetchInterval: marketOpen === false ? false : 5 * 60_000,
     staleTime:       4 * 60_000,
   });
 

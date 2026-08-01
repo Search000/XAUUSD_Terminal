@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { API_BASE } from '@/lib/api';
+import { useLivePrice } from '@/hooks/use-live-price';
 
 interface CorrAsset {
   key: string;
@@ -25,6 +26,7 @@ function corrBar(v: number | null) {
 }
 
 export function CorrelationsPanel() {
+  const { marketOpen } = useLivePrice();
   // API returns: { DXY: {name, correlation}, SILVER: {...}, SP500: {...}, BONDS: {...} }
   const { data: raw, isLoading } = useQuery({
     queryKey: ['/api/xauusd/correlations'],
@@ -33,7 +35,7 @@ export function CorrelationsPanel() {
       if (!r.ok) return {};
       return r.json();
     },
-    refetchInterval: 60000,
+    refetchInterval: marketOpen === false ? false : 60000,
   });
 
   // Convert object → array

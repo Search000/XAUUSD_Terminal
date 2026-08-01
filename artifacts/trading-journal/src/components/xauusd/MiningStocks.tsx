@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE } from '@/lib/api';
+import { useLivePrice } from '@/hooks/use-live-price';
 
 interface Stock {
   sym: string;
@@ -74,6 +75,7 @@ function Sparkline({ data, positive }: { data: number[]; positive: boolean }) {
 }
 
 export function MiningStocks() {
+  const { marketOpen } = useLivePrice();
   const { data, isLoading, dataUpdatedAt } = useQuery<MiningResponse>({
     queryKey: ['xauusd/mining-stocks'],
     queryFn: async () => {
@@ -81,7 +83,10 @@ export function MiningStocks() {
       if (!res.ok) throw new Error('fetch failed');
       return res.json();
     },
-    refetchInterval: 60_000,
+    // Uses the gold-market open flag as an approximation — these are NYSE
+    // stocks so their real hours differ slightly on weekdays, but both are
+    // closed on weekends, which is the case this mainly guards against.
+    refetchInterval: marketOpen === false ? false : 60_000,
     staleTime: 60_000,
   });
 

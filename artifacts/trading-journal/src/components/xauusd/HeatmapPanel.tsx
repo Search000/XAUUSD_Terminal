@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE } from '@/lib/api';
+import { useLivePrice } from '@/hooks/use-live-price';
 
 interface TfCell {
   tf: string;
@@ -65,6 +66,7 @@ function HeatCell({ cell }: { cell: TfCell }) {
 }
 
 export function HeatmapPanel() {
+  const { marketOpen } = useLivePrice();
   const { data, isLoading } = useQuery<HeatmapData>({
     queryKey: ['xauusd/heatmap'],
     queryFn: async () => {
@@ -72,7 +74,7 @@ export function HeatmapPanel() {
       if (!r.ok) throw new Error('fetch error');
       return r.json();
     },
-    refetchInterval: 60_000,
+    refetchInterval: marketOpen === false ? false : 60_000,
     staleTime: 55_000,
     retry: 2,
   });

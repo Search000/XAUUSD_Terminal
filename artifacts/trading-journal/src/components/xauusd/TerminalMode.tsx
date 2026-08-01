@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE } from '@/lib/api';
+import { useLivePrice } from '@/hooks/use-live-price';
 import { formatDistanceToNow } from 'date-fns';
 
 /* ─── palette ──────────────────────────────────────────────────────────── */
@@ -92,31 +93,32 @@ interface CorrItem { symbol: string; name: string; correlation: number; change: 
 /* ─── Main Terminal ────────────────────────────────────────────────────── */
 export function TerminalMode({ onClose }: { onClose: () => void }) {
   const prevPrice = useRef<number | null>(null);
+  const { marketOpen } = useLivePrice();
 
   const { data: metals } = useQuery<MetalQuote[]>({
     queryKey: ['xauusd/metals'],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/metals`, { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: 5000,
+    refetchInterval: marketOpen === false ? false : 5000,
   });
   const { data: heatmap } = useQuery<HeatData>({
     queryKey: ['xauusd/heatmap'],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/heatmap`, { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: 30000,
+    refetchInterval: marketOpen === false ? false : 30000,
   });
   const { data: vol } = useQuery<VolData>({
     queryKey: ['xauusd/volatility'],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/volatility`, { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: 15000,
+    refetchInterval: marketOpen === false ? false : 15000,
   });
   const { data: news } = useQuery<NewsItem[]>({
     queryKey: ['/api/xauusd/news'],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/news`, { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: 300000,
+    refetchInterval: 300000, // news keeps publishing regardless of market hours
   });
   const { data: corr } = useQuery<{ correlations: CorrItem[] }>({
     queryKey: ['/api/xauusd/correlations'],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/correlations`, { credentials: 'include' }).then(r => r.json()),
-    refetchInterval: 60000,
+    refetchInterval: marketOpen === false ? false : 60000,
   });
 
   const gold = metals?.find(m => m.symbol === 'XAU');

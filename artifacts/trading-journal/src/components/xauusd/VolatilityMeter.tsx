@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE } from '@/lib/api';
+import { useLivePrice } from '@/hooks/use-live-price';
 import { cn } from '@/lib/utils';
 
 interface VolatilityData {
@@ -189,6 +190,7 @@ function AtrSparkline({ data, color }: { data: number[]; color: string }) {
 }
 
 export function VolatilityMeter() {
+  const { marketOpen } = useLivePrice();
   const { data, isLoading } = useQuery<VolatilityData>({
     queryKey: ['xauusd/volatility'],
     queryFn: async () => {
@@ -196,7 +198,7 @@ export function VolatilityMeter() {
       if (!r.ok) throw new Error('fetch error');
       return r.json();
     },
-    refetchInterval: 60_000,
+    refetchInterval: marketOpen === false ? false : 60_000,
     staleTime: 55_000,
     retry: 2,
   });
