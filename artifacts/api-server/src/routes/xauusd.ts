@@ -748,6 +748,52 @@ router.get("/xauusd/calendar", async (_req, res) => {
   }
 });
 
+// ─── Dynamic Key Drivers ──────────────────────────────────────────────────────
+// Ranks the standard driver list by which factor moved the most over the last
+// month, so the strongest current driver surfaces first instead of a fixed order.
+let keyDriversCache: string[] | null = null;
+let keyDriversCacheAt = 0;
+const KEY_DRIVERS_TTL = 15 * 60 * 1000; // 15 min
+
+const STATIC_KEY_DRIVERS = [
+  "Federal Reserve rate expectations",
+  "US Dollar strength (DXY)",
+  "Geopolitical risk premium",
+  "Central bank gold reserves",
+];
+
+async function computeKeyDrivers(): Promise<string[]> {
+  const now = Date.now();
+  if (keyDriversCache && now - keyDriversCacheAt < KEY_DRIVERS_TTL) return keyDriversCache;
+
+  const proxies: { label: string; symbol: string }[] = [
+    { label: "Federal Reserve rate expectations", symbol: "^IRX" },     // 13-wk T-bill, proxy for rate path
+    { label: "US Dollar strength (DXY)",           symbol: "DX-Y.NYB" },
+    { label: "Geopolitical risk premium",           symbol: "^VIX" },
+  ];
+
+  const settled = await Promise.allSettled(proxies.map(p => yfChart(p.symbol, "1d", "1mo")));
+  const scored = proxies.map((p, i) => {
+    const r = settled[i];
+    if (r.status !== "fulfilled") return { label: p.label, score: 0 };
+    const closes = closesFromChart(r.value).filter((c: number) => c != null);
+    if (closes.length < 2) return { label: p.label, score: 0 };
+    const first = closes[0];
+    const last  = closes[closes.length - 1];
+    const pctMove = first ? Math.abs((last - first) / first) * 100 : 0;
+    return { label: p.label, score: pctMove };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  const ranked = [...scored.map(s => s.label), "Central bank gold reserves"];
+
+  // Only trust the dynamic order if we actually got at least one live signal
+  const gotLiveData = scored.some(s => s.score > 0);
+  keyDriversCache = gotLiveData ? ranked : STATIC_KEY_DRIVERS;
+  keyDriversCacheAt = now;
+  return keyDriversCache;
+}
+
 // GET /api/xauusd/summary
 router.get("/xauusd/summary", async (req, res) => {
   try {
@@ -770,6 +816,12 @@ router.get("/xauusd/summary", async (req, res) => {
       weeklyChangePct > 0 && monthlyChangePct > 0 ? "bullish"
       : weeklyChangePct < 0 && monthlyChangePct < 0 ? "bearish"
       : "neutral" as const;
+    let keyDrivers: string[];
+    try {
+      keyDrivers = await computeKeyDrivers();
+    } catch {
+      keyDrivers = STATIC_KEY_DRIVERS;
+    }
     res.json({
       currentPrice: price,
       dailyChange: parseFloat(change.toFixed(2)),
@@ -781,12 +833,7 @@ router.get("/xauusd/summary", async (req, res) => {
       marketCap: null,
       tradingVolume24h: meta?.regularMarketVolume ?? 0,
       dominantTrend: trend,
-      keyDrivers: [
-        "Federal Reserve rate expectations",
-        "US Dollar strength (DXY)",
-        "Geopolitical risk premium",
-        "Central bank gold reserves",
-      ],
+      keyDrivers,
     });
   } catch (err) {
     logger.error({ err }, "Failed to build summary");
@@ -1329,12 +1376,87 @@ const WGC_2026: { country: string; tonnes: number }[] = [
   { country: "Austria",      tonnes:  280.0 },
 ];
 
-router.get("/xauusd/central-bank-holdings", (_req, res) => {
-  const holdings = [...WGC_2026].sort((a, b) => b.tonnes - a.tonnes).slice(0, 15).map(h => ({
-    ...h,
-    year: 2026,
-  }));
-  res.json({ holdings, dataYear: 2026, updatedAt: Date.now() });
+// Free, no-key IMF SDMX API (International Financial Statistics dataset).
+// Indicator RAFAGOLDV_OZT = "Reserve Assets, Gold, National Valuation, Troy Ounces".
+// We only fetch for countries with an unambiguous ISO2 code; entities like the
+// ECB / Euro Area aggregate stay on the hardcoded WGC figures below.
+const IMF_COUNTRY_CODE: Record<string, string> = {
+  USA: "US", Germany: "DE", Italy: "IT", France: "FR", Russia: "RU",
+  China: "CN", Switzerland: "CH", India: "IN", Japan: "JP", Netherlands: "NL",
+  Turkey: "TR", Taiwan: "TW", Poland: "PL", Uzbekistan: "UZ", Portugal: "PT",
+  "Saudi Arabia": "SA", UK: "GB", Kazakhstan: "KZ", Austria: "AT",
+};
+const IMF_SDMX_BASE = "http://dataservices.imf.org/REST/SDMX_JSON.svc/CompactData/IFS";
+const IMF_TIMEOUT_MS = 8_000;
+const OZ_TO_TONNES = 31.1034768 / 1_000_000; // troy oz -> metric tonnes
+
+async function fetchImfGoldTonnes(isoCode: string): Promise<number | null> {
+  const url = `${IMF_SDMX_BASE}/A.${isoCode}.RAFAGOLDV_OZT`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), IMF_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: controller.signal, headers: { Accept: "application/json" } });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const json: any = await res.json();
+    const series = json?.CompactData?.DataSet?.Series;
+    if (!series) return null;
+    const obs = Array.isArray(series.Obs) ? series.Obs : series.Obs ? [series.Obs] : [];
+    if (!obs.length) return null;
+    const lastObs = obs[obs.length - 1];
+    const ozValue = parseFloat(lastObs?.["@OBS_VALUE"]);
+    if (!ozValue || ozValue <= 0) return null;
+    return ozValue * OZ_TO_TONNES;
+  } catch {
+    clearTimeout(timer);
+    return null;
+  }
+}
+
+let cbhCache: any = null;
+let cbhCacheAt = 0;
+const CBH_TTL = 12 * 60 * 60 * 1000; // 12h — reserve data moves quarterly at most
+
+router.get("/xauusd/central-bank-holdings", async (_req, res) => {
+  const now = Date.now();
+  if (cbhCache && now - cbhCacheAt < CBH_TTL) { res.json(cbhCache); return; }
+
+  try {
+    const entries = Object.entries(IMF_COUNTRY_CODE);
+    const settled = await Promise.allSettled(entries.map(([, code]) => fetchImfGoldTonnes(code)));
+    const liveByCountry = new Map<string, number>();
+    entries.forEach(([country], i) => {
+      const r = settled[i];
+      if (r.status !== "fulfilled" || r.value == null) return;
+      const fallback = WGC_2026.find(w => w.country === country)?.tonnes;
+      // Sanity guard: IMF unit/parsing issues would produce wildly wrong tonnage.
+      // Only trust live value if within 2.5x of the known fallback figure.
+      if (fallback && (r.value < fallback / 2.5 || r.value > fallback * 2.5)) return;
+      liveByCountry.set(country, r.value);
+    });
+
+    const holdings = [...WGC_2026]
+      .map(h => ({
+        country: h.country,
+        tonnes: parseFloat((liveByCountry.get(h.country) ?? h.tonnes).toFixed(1)),
+        year: 2026,
+        source: liveByCountry.has(h.country) ? "imf-live" : "wgc-fallback",
+      }))
+      .sort((a, b) => b.tonnes - a.tonnes)
+      .slice(0, 15);
+
+    cbhCache = { holdings, dataYear: 2026, updatedAt: now };
+    cbhCacheAt = now;
+    res.json(cbhCache);
+  } catch (err) {
+    logger.error({ err }, "central-bank-holdings error");
+    // Serve stale cache or pure hardcoded fallback rather than fail the widget
+    if (cbhCache) { res.json(cbhCache); return; }
+    const holdings = [...WGC_2026].sort((a, b) => b.tonnes - a.tonnes).slice(0, 15).map(h => ({
+      ...h, year: 2026, source: "wgc-fallback",
+    }));
+    res.json({ holdings, dataYear: 2026, updatedAt: now });
+  }
 });
 
 // ─── Mining Stocks ────────────────────────────────────────────────────────────
@@ -1472,7 +1594,7 @@ router.get("/xauusd/futures-curve", async (_req, res) => {
 
     // Try fetching actual nearby contract prices from Yahoo
     // Known-good symbols for gold futures on Yahoo Finance
-    const nearbySymbols = ["GC=F", "GCZ26.CMX", "GCM27.CMX", "GCZ27.CMX"];
+    const nearbySymbols = ["GCZ26.CMX", "GCM27.CMX", "GCZ27.CMX"];
     const nearbyPrices  = await Promise.allSettled(nearbySymbols.map(s => yfQuote(s)));
     const actualMap = new Map<string, number>();
     nearbySymbols.forEach((s, i) => {
@@ -1480,11 +1602,45 @@ router.get("/xauusd/futures-curve", async (_req, res) => {
       if (r.status === "fulfilled" && r.value && r.value > 0) actualMap.set(s, r.value);
     });
 
+    // Futures month codes: F=Jan G=Feb H=Mar J=Apr K=May M=Jun N=Jul Q=Aug U=Sep V=Oct X=Nov Z=Dec
+    const MONTH_CODE: Record<string, number> = {
+      F: 0, G: 1, H: 2, J: 3, K: 4, M: 5, N: 6, Q: 7, U: 8, V: 9, X: 10, Z: 11,
+    };
+    // Parse "GCZ26.CMX" -> code Z, year 26 -> Dec 2026 -> months-out from today
+    function monthsOutFromSymbol(sym: string): number | null {
+      const m = sym.match(/^GC([FGHJKMNQUVXZ])(\d{2})\./);
+      if (!m) return null;
+      const monthIdx = MONTH_CODE[m[1]];
+      const year = 2000 + parseInt(m[2], 10);
+      const expiry = new Date(year, monthIdx, 1);
+      return (expiry.getFullYear() - today.getFullYear()) * 12 + (expiry.getMonth() - today.getMonth());
+    }
+    // Map each actual quote to the closest theoretical contract bucket (within 2 months)
+    const actualBySlot = new Map<number, number>(); // expiryMonths (of `contracts`) -> actual price
+    nearbySymbols.forEach(sym => {
+      const price = actualMap.get(sym);
+      if (!price) return;
+      const monthsOut = monthsOutFromSymbol(sym);
+      if (monthsOut == null) return;
+      let best: { expiryMonths: number; diff: number } | null = null;
+      for (const c of contracts) {
+        if (c.expiryMonths === 0) continue; // spot handled separately
+        const diff = Math.abs(c.expiryMonths - monthsOut);
+        if (!best || diff < best.diff) best = { expiryMonths: c.expiryMonths, diff };
+      }
+      if (best && best.diff <= 2 && !actualBySlot.has(best.expiryMonths)) {
+        actualBySlot.set(best.expiryMonths, price);
+      }
+    });
+
     // Build rows using cost-of-carry model (F = S * e^(r*T))
-    // Blend with actual prices where available
+    // Blend with actual live contract prices where available (avg of theoretical + actual)
     const rows = contracts.map(c => {
-      const T     = c.expiryMonths / 12;
-      const fwd   = parseFloat((spotPrice * Math.exp(carryRate * T)).toFixed(2));
+      const T       = c.expiryMonths / 12;
+      const theoFwd = spotPrice * Math.exp(carryRate * T);
+      const actual  = actualBySlot.get(c.expiryMonths);
+      const blended = actual != null;
+      const fwd     = parseFloat((blended ? (theoFwd + actual!) / 2 : theoFwd).toFixed(2));
       const spread    = parseFloat((fwd - spotPrice).toFixed(2));
       const spreadPct = parseFloat(((spread / spotPrice) * 100).toFixed(3));
       // Approximate expiry date label
@@ -1499,7 +1655,7 @@ router.get("/xauusd/futures-curve", async (_req, res) => {
         price: c.expiryMonths === 0 ? parseFloat(spotPrice.toFixed(2)) : fwd,
         spread,
         spreadPct,
-        theoretical: true,
+        theoretical: !blended,
       };
     });
 
