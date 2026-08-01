@@ -692,14 +692,29 @@ const FRED_RELEASES: Array<{
   series: string;
   impact: "low" | "medium" | "high";
   releaseTimeEt: string;
+  /** FRED "units" transform — turns raw levels into the %/change figures
+   * traders actually expect (ForexFactory-style), instead of a raw index
+   * or dollar level that's meaningless at a glance. */
+  units: "lin" | "chg" | "pch" | "pc1";
+  /** How to format the transformed value for display, e.g. "1.5%" or "197K". */
+  format: "percent" | "thousands" | "rate";
 }> = [
-  { id: 10, title: "Consumer Price Index (CPI)", series: "CPIAUCSL", impact: "high", releaseTimeEt: "08:30" },
-  { id: 50, title: "Employment Situation (Non-Farm Payrolls)", series: "PAYEMS", impact: "high", releaseTimeEt: "08:30" },
-  { id: 53, title: "Gross Domestic Product (GDP)", series: "GDP", impact: "high", releaseTimeEt: "08:30" },
-  { id: 101, title: "FOMC Press Release / Rate Decision", series: "FEDFUNDS", impact: "high", releaseTimeEt: "14:00" },
-  { id: 46, title: "Producer Price Index (PPI)", series: "PPIACO", impact: "medium", releaseTimeEt: "08:30" },
-  { id: 9, title: "Retail Sales", series: "RSAFS", impact: "medium", releaseTimeEt: "08:30" },
+  { id: 10, title: "Consumer Price Index (CPI) m/m", series: "CPIAUCSL", impact: "high", releaseTimeEt: "08:30", units: "pch", format: "percent" },
+  { id: 50, title: "Non-Farm Payrolls (change)", series: "PAYEMS", impact: "high", releaseTimeEt: "08:30", units: "chg", format: "thousands" },
+  { id: 53, title: "GDP (annualized q/q)", series: "A191RL1Q225SBEA", impact: "high", releaseTimeEt: "08:30", units: "lin", format: "percent" },
+  { id: 101, title: "FOMC Press Release / Rate Decision", series: "FEDFUNDS", impact: "high", releaseTimeEt: "14:00", units: "lin", format: "rate" },
+  { id: 46, title: "Producer Price Index (PPI) m/m", series: "PPIACO", impact: "medium", releaseTimeEt: "08:30", units: "pch", format: "percent" },
+  { id: 9, title: "Retail Sales m/m", series: "RSAFS", impact: "medium", releaseTimeEt: "08:30", units: "pch", format: "percent" },
 ];
+
+/** Format a raw FRED numeric string per the release's display convention. */
+function formatFredValue(raw: string, format: "percent" | "thousands" | "rate"): string {
+  const n = parseFloat(raw);
+  if (isNaN(n)) return raw;
+  if (format === "percent" || format === "rate") return `${n.toFixed(1)}%`;
+  if (format === "thousands") return `${Math.round(n)}K`;
+  return raw;
+}
 
 async function fredGet(apiKey: string, path: string, params: Record<string, string | number>): Promise<any> {
   const url = new URL(`https://api.stlouisfed.org/fred/${path}`);
@@ -762,13 +777,14 @@ async function fetchFredCalendar(): Promise<any[]> {
           try {
             const obs = await fredGet(apiKey, "series/observations", {
               series_id: rel.series,
+              units: rel.units,
               realtime_start: d.date,
               realtime_end: d.date,
               sort_order: "desc",
               limit: 1,
             });
             const val = obs?.observations?.[0]?.value;
-            if (val && val !== ".") actual = val;
+            if (val && val !== ".") actual = formatFredValue(val, rel.format);
           } catch {
             // vintage lookup is best-effort; leave actual null on failure
           }
