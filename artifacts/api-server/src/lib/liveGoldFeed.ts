@@ -27,6 +27,21 @@ export interface LiveGoldTick {
   ask?: number;
   changePct?: number;
   timestamp: number;
+  marketOpen?: boolean;
+}
+
+// XAU/USD (spot gold vs dollar) trades ~24/5 like forex: opens Sunday
+// ~22:00 UTC (Sydney) and closes Friday ~21:00 UTC (NY close, 5pm ET).
+// This is an approximation (ignores exact DST offset + holidays) but is
+// good enough to freeze the UI instead of showing a fake-live price
+// over the weekend.
+export function isGoldMarketOpen(d: Date = new Date()): boolean {
+  const day = d.getUTCDay(); // 0 = Sun, 6 = Sat
+  const hour = d.getUTCHours();
+  if (day === 6) return false;                 // all Saturday: closed
+  if (day === 0 && hour < 22) return false;     // Sunday before ~22:00 UTC open
+  if (day === 5 && hour >= 21) return false;    // Friday after ~21:00 UTC close
+  return true;
 }
 
 class LiveGoldFeed extends EventEmitter {
@@ -41,10 +56,28 @@ class LiveGoldFeed extends EventEmitter {
     if (this.started) return; // idempotent — safe to call multiple times
     this.started = true;
     this.connect();
+    this.startStatusBroadcast();
   }
 
   getLatest(): LiveGoldTick | null {
     return this.latest;
+  }
+
+  private statusTimer: NodeJS.Timeout | null = null;
+
+  // Re-emits the last known price (unchanged) with a refreshed marketOpen
+  // flag every 30s. Real ticks stop arriving over the weekend, so without
+  // this, clients only learn the market re/closed on their next reconnect —
+  // this keeps the "MARKET CLOSED" badge accurate in near real-time while
+  // never mutating the frozen price itself.
+  private startStatusBroadcast() {
+    this.statusTimer = setInterval(() => {
+      if (!this.latest) return;
+      const nowOpen = isGoldMarketOpen();
+      if (nowOpen === this.latest.marketOpen) return; // no state change, skip noise
+      this.latest = { ...this.latest, marketOpen: nowOpen };
+      this.emit("tick", this.latest);
+    }, 30_000).unref();
   }
 
   private connect() {
@@ -143,6 +176,7 @@ class LiveGoldFeed extends EventEmitter {
             ask: v.ask,
             changePct: v.chp,
             timestamp: Date.now(),
+            marketOpen: isGoldMarketOpen(),
           };
           this.emit("tick", this.latest);
         }

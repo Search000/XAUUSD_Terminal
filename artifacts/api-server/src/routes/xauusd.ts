@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { logger } from "../lib/logger";
-import { liveGoldFeed, type LiveGoldTick } from "../lib/liveGoldFeed";
+import { liveGoldFeed, isGoldMarketOpen, type LiveGoldTick } from "../lib/liveGoldFeed";
 
 const router = Router();
 
@@ -174,6 +174,7 @@ router.get("/xauusd/price", async (req, res) => {
       low24h: meta.regularMarketDayLow ?? price,
       open24h: prev ?? price,
       timestamp: meta.regularMarketTime ?? Date.now() / 1000,
+      marketOpen: isGoldMarketOpen(),
     });
   } catch (err) {
     logger.error({ err }, "Failed to fetch XAUUSD price");
@@ -215,7 +216,7 @@ router.get("/xauusd/live-price", (req: Request, res: Response) => {
   // send whatever we already have immediately — new viewers don't wait
   const cached = liveGoldFeed.getLatest();
   if (cached) {
-    res.write(`data: ${JSON.stringify(cached)}\n\n`);
+    res.write(`data: ${JSON.stringify({ ...cached, marketOpen: isGoldMarketOpen() })}\n\n`);
     (res as any).flush?.();
   }
 

@@ -17,6 +17,7 @@ interface TickData {
   tickCount?: number;
   spread?: number;
   source?: string;
+  marketOpen?: boolean;
 }
 
 interface MetalQuote {
@@ -162,6 +163,7 @@ interface LiveFeedTick {
   ask?: number;
   changePct?: number;
   timestamp: number;
+  marketOpen?: boolean;
 }
 
 export function LiveTicker() {
@@ -261,16 +263,19 @@ export function LiveTicker() {
         open24h: open,
         timestamp: liveTick.timestamp,
         source: 'live',
+        marketOpen: liveTick.marketOpen,
       };
     }
     return null;
   }, [liveTick, snapshot]);
 
   const connected = liveConnected;
+  const marketClosed = tick?.marketOpen === false;
 
-  // Flash on price change, driven off the merged tick
+  // Flash on price change, driven off the merged tick — skipped while the
+  // market is closed so a frozen price never "flashes" from a stale re-send.
   useEffect(() => {
-    if (!tick) return;
+    if (!tick || marketClosed) return;
     const prev = prevPriceRef.current;
     const dir = prev !== null
       ? tick.price > prev ? 'up' : tick.price < prev ? 'down' : null
@@ -281,10 +286,11 @@ export function LiveTicker() {
       flashTimer.current = setTimeout(() => setFlash(null), 600);
     }
     prevPriceRef.current = tick.price;
-  }, [tick]);
+  }, [tick, marketClosed]);
 
   const isUp = tick ? tick.change >= 0 : true;
   const priceColor =
+    marketClosed     ? '#758696' :
     flash === 'up'   ? '#26a69a' :
     flash === 'down' ? '#ef5350' :
     isUp             ? '#26a69a' : '#ef5350';
@@ -329,15 +335,19 @@ export function LiveTicker() {
                 </span>
                 <span className={cn(
                   'flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded font-mono border',
-                  connected
+                  marketClosed
+                    ? 'bg-[#758696]/10 text-[#758696] border-[#758696]/20'
+                    : connected
                     ? 'bg-[#26a69a]/10 text-[#26a69a] border-[#26a69a]/20'
                     : 'bg-[#2a2a3e] text-[#758696] border-[#2a2a3e]'
                 )}>
-                  {connected
+                  {marketClosed
+                    ? <WifiOff className="w-2.5 h-2.5" />
+                    : connected
                     ? <Activity className="w-2.5 h-2.5 animate-pulse" />
                     : <WifiOff className="w-2.5 h-2.5" />
                   }
-                  {connected ? 'LIVE' : 'CONNECTING'}
+                  {marketClosed ? 'MARKET CLOSED' : connected ? 'LIVE' : 'CONNECTING'}
                 </span>
                 {tick?.tickCount !== undefined && (
                   <span className="text-[9px] font-mono text-[#758696]">#{tick.tickCount}</span>
