@@ -174,6 +174,8 @@ function useZonedClock(offsetMinutes: number) {
   }, [offsetMinutes]);
   return time;
 }
+
+interface LiveFeedTick {
   symbol: string;
   price: number;
   bid?: number;
