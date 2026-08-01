@@ -104,13 +104,8 @@ export function XauusdMonitorPage() {
               {/* BATCH 2 – heatmap + order flow */}
               {batch >= 2 && <HeatmapPanel />}
 
-              {/* BATCH 3 – news + calendar */}
-              {batch >= 3 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <NewsPanel />
-                  <CalendarPanel />
-                </div>
-              )}
+              {/* BATCH 3 – calendar */}
+              {batch >= 3 && <CalendarPanel />}
 
               {/* BATCH 2 – order flow */}
               {batch >= 2 && <OrderFlowPanel />}
@@ -152,8 +147,6 @@ export function XauusdMonitorPage() {
                 </div>
               )}
 
-              {/* BATCH 3 – correlations */}
-              {batch >= 3 && <CorrelationsPanel />}
             </div>
 
             {/* ── Right sidebar ────────────────────────────────────── */}
@@ -164,6 +157,9 @@ export function XauusdMonitorPage() {
               {batch >= 2 && <VolatilityMeter />}
               {batch >= 2 && <SessionsPanel />}
               {batch >= 2 && <SummaryPanel />}
+              {/* BATCH 3 – moved here from the left column to fill sidebar height */}
+              {batch >= 3 && <NewsPanel />}
+              {batch >= 3 && <CorrelationsPanel />}
             </div>
           </div>
 
