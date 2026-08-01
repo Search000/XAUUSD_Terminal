@@ -642,86 +642,103 @@ function goldImpactFor(title: string): string {
   return "USD-denominated macro release — surprises versus forecast move the dollar and, inversely, gold.";
 }
 
+// FRED (Federal Reserve Economic Data, St. Louis Fed) — 100% free, no paid
+// tier, unlimited requests. https://fred.stlouisfed.org/docs/api/api_key.html
+// FRED doesn't publish consensus "forecast" figures, so forecast is left
+// null rather than fabricated. "previous" is the latest known observation
+// of a representative series for that release.
+const FRED_RELEASES: Array<{
+  id: number;
+  title: string;
+  series: string;
+  impact: "low" | "medium" | "high";
+}> = [
+  { id: 10, title: "Consumer Price Index (CPI)", series: "CPIAUCSL", impact: "high" },
+  { id: 50, title: "Employment Situation (Non-Farm Payrolls)", series: "PAYEMS", impact: "high" },
+  { id: 53, title: "Gross Domestic Product (GDP)", series: "GDP", impact: "high" },
+  { id: 101, title: "FOMC Press Release / Rate Decision", series: "FEDFUNDS", impact: "high" },
+  { id: 46, title: "Producer Price Index (PPI)", series: "PPIACO", impact: "medium" },
+  { id: 9, title: "Retail Sales", series: "RSAFS", impact: "medium" },
+];
+
+async function fredGet(apiKey: string, path: string, params: Record<string, string | number>): Promise<any> {
+  const url = new URL(`https://api.stlouisfed.org/fred/${path}`);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("file_type", "json");
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(url.toString(), { signal: controller.signal });
+    if (!res.ok) throw new Error(`FRED error: ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchLiveCalendar(): Promise<any[]> {
-  const apiKey = process.env["CALENDAR_API_KEY"];
+  const apiKey = process.env["FRED_API_KEY"];
   if (!apiKey) {
-    throw new Error("CALENDAR_API_KEY not set");
+    throw new Error("FRED_API_KEY not set");
   }
 
-  // Trading Economics calendar API — key format is "client:secret" from
-  // https://tradingeconomics.com/api (free tier available).
   const today = new Date();
   const from = today.toISOString().split("T")[0];
   const until = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
     .toISOString()
     .split("T")[0];
 
-  const url =
-    `https://api.tradingeconomics.com/calendar/country/united%20states` +
-    `?d1=${from}&d2=${until}&c=${encodeURIComponent(apiKey)}`;
+  const events: any[] = [];
 
-  // Trading Economics free/trial tier occasionally 429s under load — one
-  // retry with a short backoff avoids a false "feed unavailable" fallback.
-  async function fetchWithRetry(attempt = 0): Promise<any> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
+  for (const rel of FRED_RELEASES) {
     try {
-      const res = await fetch(url, { signal: controller.signal });
-      if (res.status === 429 && attempt < 1) {
-        clearTimeout(timer);
-        await new Promise((r) => setTimeout(r, 800));
-        return fetchWithRetry(attempt + 1);
+      const datesData = await fredGet(apiKey, "release/dates", {
+        release_id: rel.id,
+        realtime_start: from,
+        realtime_end: until,
+        include_release_dates_with_no_data: "false",
+      });
+      const dates: Array<{ date: string }> = (datesData?.release_dates ?? []).filter(
+        (d: any) => d?.date >= from && d?.date <= until,
+      );
+      if (dates.length === 0) continue;
+
+      let previous: string | null = null;
+      try {
+        const obs = await fredGet(apiKey, "series/observations", {
+          series_id: rel.series,
+          sort_order: "desc",
+          limit: 1,
+        });
+        previous = obs?.observations?.[0]?.value ?? null;
+      } catch {
+        // representative series lookup is best-effort; skip on failure
       }
-      if (!res.ok) throw new Error(`Calendar feed error: ${res.status}`);
-      return await res.json();
-    } finally {
-      clearTimeout(timer);
+
+      for (const d of dates) {
+        events.push({
+          id: `fred-${rel.id}-${d.date}`,
+          title: rel.title,
+          country: "USD",
+          date: d.date,
+          time: "08:30",
+          impact: rel.impact,
+          forecast: null,
+          previous,
+          actual: null,
+          description: `${rel.title} release, scheduled via the FRED (St. Louis Fed) release calendar.`,
+          goldImpact: goldImpactFor(rel.title),
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, release: rel.id }, "FRED release/dates fetch failed for one release");
     }
   }
 
-  const data = await fetchWithRetry();
-  const rows: any[] = Array.isArray(data) ? data : [];
-
-  const impactFromImportance = (n: number): "low" | "medium" | "high" =>
-    n >= 3 ? "high" : n === 2 ? "medium" : "low";
-
-  const events = rows
-    .filter((r) => (r?.Importance ?? 0) >= 2) // medium + high only
-    .map((r) => {
-      const title: string = r?.Event ?? r?.Category ?? "Economic Event";
-      const dt = new Date(r?.Date ?? Date.now());
-      return {
-        id: `${r?.CalendarId ?? title}-${dt.toISOString()}`,
-        title,
-        country: "USD",
-        date: dt.toISOString().split("T")[0],
-        time: dt.toISOString().split("T")[1]?.slice(0, 5) ?? "00:00",
-        impact: impactFromImportance(r?.Importance ?? 2),
-        forecast: r?.Forecast != null && r.Forecast !== "" ? String(r.Forecast) : null,
-        previous: r?.Previous != null && r.Previous !== "" ? String(r.Previous) : null,
-        actual: r?.Actual != null && r.Actual !== "" ? String(r.Actual) : null,
-        description: r?.Category
-          ? `${r.Category} release from the ${r?.Source ?? "US"} calendar.`
-          : "Scheduled US economic data release.",
-        goldImpact: goldImpactFor(title),
-      };
-    })
-    .filter((e) => {
-      const t = e.title.toLowerCase();
-      return GOLD_RELEVANT_KEYWORDS.some((k) => t.includes(k));
-    });
-
-  // Some upstream feeds emit the same release twice (e.g. a preliminary +
-  // revised row sharing an id) — keep the first occurrence only.
-  const seen = new Set<string>();
-  const deduped = events.filter((e) => {
-    if (seen.has(e.id)) return false;
-    seen.add(e.id);
-    return true;
-  });
-
-  deduped.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-  return deduped;
+  events.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return events;
 }
 
 // GET /api/xauusd/calendar
