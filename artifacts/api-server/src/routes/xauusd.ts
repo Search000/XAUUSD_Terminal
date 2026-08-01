@@ -642,31 +642,6 @@ function goldImpactFor(title: string): string {
   return "USD-denominated macro release — surprises versus forecast move the dollar and, inversely, gold.";
 }
 
-// FRED (Federal Reserve Economic Data, St. Louis Fed) — 100% free, no paid
-// tier, unlimited requests. https://fred.stlouisfed.org/docs/api/api_key.html
-// FRED doesn't publish consensus "forecast" figures, so forecast is left
-// null rather than fabricated (real data-source limitation, not a bug).
-// "actual"/"previous" ARE available from FRED's vintage (realtime)
-// observation history and are now populated below instead of always blank.
-//
-// releaseTimeEt = official U.S. Eastern-time release hour for that report
-// (used to be hardcoded to 08:30 for everything, which was wrong for
-// FOMC — the statement/rate decision drops at 14:00 ET, not 08:30 ET).
-const FRED_RELEASES: Array<{
-  id: number;
-  title: string;
-  series: string;
-  impact: "low" | "medium" | "high";
-  releaseTimeEt: string;
-}> = [
-  { id: 10, title: "Consumer Price Index (CPI)", series: "CPIAUCSL", impact: "high", releaseTimeEt: "08:30" },
-  { id: 50, title: "Employment Situation (Non-Farm Payrolls)", series: "PAYEMS", impact: "high", releaseTimeEt: "08:30" },
-  { id: 53, title: "Gross Domestic Product (GDP)", series: "GDP", impact: "high", releaseTimeEt: "08:30" },
-  { id: 101, title: "FOMC Press Release / Rate Decision", series: "FEDFUNDS", impact: "high", releaseTimeEt: "14:00" },
-  { id: 46, title: "Producer Price Index (PPI)", series: "PPIACO", impact: "medium", releaseTimeEt: "08:30" },
-  { id: 9, title: "Retail Sales", series: "RSAFS", impact: "medium", releaseTimeEt: "08:30" },
-];
-
 // Convert a US-Eastern wall-clock date+time ("2026-07-30", "08:30") into a
 // correct UTC ISO string, accounting for EST/EDT (DST) automatically. Uses
 // only built-in Intl — no extra deps, no network call.
@@ -700,27 +675,9 @@ function etWallTimeToUtcIso(dateStr: string, timeStr: string): string {
   return new Date(guessUtc + offset).toISOString();
 }
 
-async function fredGet(apiKey: string, path: string, params: Record<string, string | number>): Promise<any> {
-  const url = new URL(`https://api.stlouisfed.org/fred/${path}`);
-  url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("file_type", "json");
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const res = await fetch(url.toString(), { signal: controller.signal });
-    if (!res.ok) throw new Error(`FRED error: ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// ─── FMP (financialmodelingprep.com) — primary calendar source ─────────────
+// ─── FMP (financialmodelingprep.com) — calendar source ─────────────────────
 // Uses the current "stable" endpoint (legacy /api/v3 endpoints are dead as
-// of Aug 2025). Gives real forecast/previous/actual numbers, unlike FRED.
-// Falls back to FRED below if FMP_API_KEY is missing or the request fails.
+// of Aug 2025). Gives real forecast/previous/actual numbers.
 async function fetchFmpCalendar(): Promise<any[]> {
   const apiKey = process.env["FMP_API_KEY"];
   if (!apiKey) {
@@ -788,88 +745,6 @@ async function fetchFmpCalendar(): Promise<any[]> {
   return events;
 }
 
-async function fetchFredCalendar(): Promise<any[]> {
-  const apiKey = process.env["FRED_API_KEY"];
-  if (!apiKey) {
-    throw new Error("FRED_API_KEY not set");
-  }
-
-  const today = new Date();
-  const from = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
-  const until = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
-
-  const events: any[] = [];
-  const todayStr = today.toISOString().split("T")[0];
-
-  for (const rel of FRED_RELEASES) {
-    try {
-      const datesData = await fredGet(apiKey, "release/dates", {
-        release_id: rel.id,
-        realtime_start: from,
-        realtime_end: until,
-        include_release_dates_with_no_data: "false",
-      });
-      const dates: Array<{ date: string }> = (datesData?.release_dates ?? [])
-        .filter((d: any) => d?.date >= from && d?.date <= until)
-        .sort((a: any, b: any) => a.date.localeCompare(b.date));
-      if (dates.length === 0) continue;
-
-      // Walk releases oldest -> newest. For each release date that's already
-      // happened, ask FRED what the series value was "as known on that date"
-      // (a vintage/realtime lookup) — that's the true "actual" print for
-      // that release. The actual from the prior release becomes "previous"
-      // for the next one, giving a correct chain instead of a single static
-      // "latest observation" reused for every row.
-      let runningPrevious: string | null = null;
-
-      for (const d of dates) {
-        let actual: string | null = null;
-        if (d.date <= todayStr) {
-          try {
-            const obs = await fredGet(apiKey, "series/observations", {
-              series_id: rel.series,
-              realtime_start: d.date,
-              realtime_end: d.date,
-              sort_order: "desc",
-              limit: 1,
-            });
-            const val = obs?.observations?.[0]?.value;
-            if (val && val !== ".") actual = val;
-          } catch {
-            // vintage lookup is best-effort; leave actual null on failure
-          }
-        }
-
-        events.push({
-          id: `fred-${rel.id}-${d.date}`,
-          title: rel.title,
-          country: "USD",
-          date: d.date,
-          time: rel.releaseTimeEt,
-          datetimeUtc: etWallTimeToUtcIso(d.date, rel.releaseTimeEt),
-          impact: rel.impact,
-          forecast: null,
-          previous: runningPrevious,
-          actual,
-          description: `${rel.title} release, scheduled via the FRED (St. Louis Fed) release calendar.`,
-          goldImpact: goldImpactFor(rel.title),
-        });
-
-        if (actual !== null) runningPrevious = actual;
-      }
-    } catch (err) {
-      logger.warn({ err, release: rel.id }, "FRED release/dates fetch failed for one release");
-    }
-  }
-
-  events.sort((a, b) => a.datetimeUtc.localeCompare(b.datetimeUtc));
-  return events;
-}
-
 // GET /api/xauusd/calendar
 router.get("/xauusd/calendar", async (_req, res) => {
   const now = Date.now();
@@ -878,28 +753,14 @@ router.get("/xauusd/calendar", async (_req, res) => {
     return;
   }
 
-  // Try FMP first (real forecast/previous/actual numbers). If it's not
-  // configured or fails, fall back to FRED (free, no paid tier, but no
-  // forecast figures). If both fail, serve stale cache instead of nothing.
   try {
     const events = await fetchFmpCalendar();
     if (events.length === 0) throw new Error("FMP calendar returned 0 relevant events");
     calendarCache = events;
     calendarCacheAt = now;
     res.json(calendarCache);
-    return;
-  } catch (fmpErr) {
-    logger.warn({ err: fmpErr }, "xauusd/calendar: FMP source unavailable, falling back to FRED");
-  }
-
-  try {
-    const events = await fetchFredCalendar();
-    if (events.length === 0) throw new Error("FRED calendar returned 0 relevant events");
-    calendarCache = events;
-    calendarCacheAt = now;
-    res.json(calendarCache);
   } catch (err) {
-    logger.warn({ err }, "xauusd/calendar: both live feeds unavailable, no cached data to serve");
+    logger.warn({ err }, "xauusd/calendar: FMP feed unavailable, no cached data to serve");
     if (calendarCache) {
       res.json(calendarCache);
       return;
