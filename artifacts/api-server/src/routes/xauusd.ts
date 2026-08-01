@@ -685,7 +685,9 @@ async function fetchLiveCalendar(): Promise<any[]> {
   }
 
   const today = new Date();
-  const from = today.toISOString().split("T")[0];
+  const from = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
   const until = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
     .toISOString()
     .split("T")[0];

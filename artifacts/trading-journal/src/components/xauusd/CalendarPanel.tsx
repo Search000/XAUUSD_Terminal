@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { Calendar, ChevronDown, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
-import { format, parseISO } from 'date-fns';
+import { format, addDays, subDays, isToday } from 'date-fns';
 
 interface CalendarEvent {
   id: string;
@@ -52,21 +52,25 @@ function ActualVsForecast({ actual, forecast }: { actual: string | null; forecas
 
 export function CalendarPanel() {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const { data, isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ['/api/xauusd/calendar'],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/calendar`, { credentials: 'include' }).then(r => r.json()),
   });
 
-  const grouped = React.useMemo(() => {
-    if (!data) return {};
-    return data.reduce<Record<string, CalendarEvent[]>>((acc, ev) => {
-      const key = ev.date;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(ev);
-      return acc;
-    }, {});
-  }, [data]);
+  const selectedKey = format(selectedDate, 'yyyy-MM-dd');
+
+  const eventsForSelectedDate = React.useMemo(() => {
+    if (!data) return [];
+    return data
+      .filter(ev => ev.date === selectedKey)
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }, [data, selectedKey]);
+
+  const goToPrevDay = () => setSelectedDate(d => subDays(d, 1));
+  const goToNextDay = () => setSelectedDate(d => addDays(d, 1));
+  const goToToday = () => setSelectedDate(new Date());
 
   return (
     <div className="rounded-lg border border-[#2a2a3e] overflow-hidden" style={{ background: '#0d0d14' }}>
@@ -75,6 +79,39 @@ export function CalendarPanel() {
         <Calendar className="w-4 h-4 text-[#f0b90b]" />
         <span className="text-sm font-bold text-[#d1d4dc] tracking-wide">Economic Calendar</span>
         <span className="ml-auto text-[10px] font-mono text-[#9598a1]">GOLD-RELEVANT EVENTS</span>
+      </div>
+
+      {/* Date navigation */}
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-[#2a2a3e] bg-[#0d0d1a]">
+        <button
+          onClick={goToPrevDay}
+          className="p-1.5 rounded hover:bg-[#1a1a2e] text-[#9598a1] hover:text-[#d1d4dc] transition-colors"
+          aria-label="Previous day"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={goToToday}
+          className="flex flex-col items-center gap-0.5 hover:opacity-80 transition-opacity"
+        >
+          <span className="text-sm font-bold text-[#d1d4dc]">
+            {format(selectedDate, 'EEE, MMM d yyyy')}
+          </span>
+          {!isToday(selectedDate) && (
+            <span className="text-[9px] font-mono text-[#f0b90b] uppercase tracking-widest">
+              Jump to today
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={goToNextDay}
+          className="p-1.5 rounded hover:bg-[#1a1a2e] text-[#9598a1] hover:text-[#d1d4dc] transition-colors"
+          aria-label="Next day"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
 
       {isLoading ? (
@@ -88,15 +125,7 @@ export function CalendarPanel() {
         </div>
       ) : (
         <div className="divide-y divide-[#1a1a2e]">
-          {Object.entries(grouped).map(([date, events]) => (
-            <div key={date}>
-              {/* Date group header */}
-              <div className="px-4 py-2 bg-[#0d0d1a] flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold text-[#f0b90b] uppercase tracking-widest">
-                  {format(parseISO(date), 'EEE, MMM d yyyy')}
-                </span>
-              </div>
-              {events.map(event => {
+          {eventsForSelectedDate.map(event => {
                 const isOpen = expanded === event.id;
                 return (
                   <div key={event.id} className="border-b border-[#151520] last:border-0">
@@ -188,13 +217,11 @@ export function CalendarPanel() {
                   </div>
                 );
               })}
-            </div>
-          ))}
 
-          {data && data.length === 0 && (
+          {eventsForSelectedDate.length === 0 && (
             <div className="p-10 text-center">
               <Calendar className="w-8 h-8 text-[#2a2a3e] mx-auto mb-3" />
-              <p className="text-sm text-[#758696] font-mono">No high-impact events scheduled</p>
+              <p className="text-sm text-[#758696] font-mono">No high-impact events on this date</p>
             </div>
           )}
         </div>
