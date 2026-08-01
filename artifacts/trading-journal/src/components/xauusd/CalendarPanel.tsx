@@ -4,13 +4,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { API_BASE } from '@/lib/api';
-import { format, addDays, subDays, isToday } from 'date-fns';
+import { addDays, subDays, isToday } from 'date-fns';
+import { useSystemTimezone, toZonedParts, formatDateLabel } from '@/lib/timezone';
 
 interface CalendarEvent {
   id: string;
   country: string;
   date: string;
   time: string;
+  /** UTC ISO datetime — canonical source of truth for display; date/time above are the raw ET release wall-time as a fallback. */
+  datetimeUtc?: string;
   impact: 'low' | 'medium' | 'high';
   title: string;
   actual: string | null;
@@ -53,20 +56,33 @@ function ActualVsForecast({ actual, forecast }: { actual: string | null; forecas
 export function CalendarPanel() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const { offsetMinutes, label: tzLabel } = useSystemTimezone();
 
   const { data, isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ['/api/xauusd/calendar'],
     queryFn: () => fetch(`${API_BASE}/api/xauusd/calendar`, { credentials: 'include' }).then(r => r.json()),
   });
 
-  const selectedKey = format(selectedDate, 'yyyy-MM-dd');
+  const selectedKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+
+  // Every event carries its own UTC instant, then gets re-grouped and
+  // re-timed for the day/hour it falls on in the user's chosen System
+  // Timezone (Settings → System Timezone) — instead of the old behavior of
+  // just echoing the raw ET release date/time regardless of that setting.
+  const zonedEvents = React.useMemo(() => {
+    if (!data) return [];
+    return data.map(ev => {
+      const source = ev.datetimeUtc ?? `${ev.date}T${ev.time}:00Z`;
+      const zoned = toZonedParts(source, offsetMinutes);
+      return { ...ev, zonedDateKey: zoned.dateKey, zonedTime: zoned.timeLabel };
+    });
+  }, [data, offsetMinutes]);
 
   const eventsForSelectedDate = React.useMemo(() => {
-    if (!data) return [];
-    return data
-      .filter(ev => ev.date === selectedKey)
-      .sort((a, b) => a.time.localeCompare(b.time));
-  }, [data, selectedKey]);
+    return zonedEvents
+      .filter(ev => ev.zonedDateKey === selectedKey)
+      .sort((a, b) => a.zonedTime.localeCompare(b.zonedTime));
+  }, [zonedEvents, selectedKey]);
 
   const goToPrevDay = () => setSelectedDate(d => subDays(d, 1));
   const goToNextDay = () => setSelectedDate(d => addDays(d, 1));
@@ -78,7 +94,7 @@ export function CalendarPanel() {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2a2a3e]">
         <Calendar className="w-4 h-4 text-[#f0b90b]" />
         <span className="text-sm font-bold text-[#d1d4dc] tracking-wide">Economic Calendar</span>
-        <span className="ml-auto text-[10px] font-mono text-[#9598a1]">GOLD-RELEVANT EVENTS</span>
+        <span className="ml-auto text-[10px] font-mono text-[#9598a1]">GOLD-RELEVANT EVENTS · TIMES IN {tzLabel}</span>
       </div>
 
       {/* Date navigation */}
@@ -96,7 +112,7 @@ export function CalendarPanel() {
           className="flex flex-col items-center gap-0.5 hover:opacity-80 transition-opacity"
         >
           <span className="text-sm font-bold text-[#d1d4dc]">
-            {format(selectedDate, 'EEE, MMM d yyyy')}
+            {formatDateLabel(selectedDate)}
           </span>
           {!isToday(selectedDate) && (
             <span className="text-[9px] font-mono text-[#f0b90b] uppercase tracking-widest">
@@ -140,7 +156,7 @@ export function CalendarPanel() {
                         <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#1a1a2e] text-[#9598a1] shrink-0">
                           {event.country}
                         </span>
-                        <span className="text-[11px] font-mono text-[#9598a1] shrink-0">{event.time}</span>
+                        <span className="text-[11px] font-mono text-[#9598a1] shrink-0">{event.zonedTime}</span>
 
                         {/* Title */}
                         <span className="text-sm font-medium text-[#d1d4dc] flex-1 min-w-0 truncate">

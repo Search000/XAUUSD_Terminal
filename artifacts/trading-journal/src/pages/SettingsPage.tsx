@@ -4,7 +4,9 @@ import { useGetTelegramSettings, getGetTelegramSettingsQueryKey, useUpdateTelegr
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { GMT_OFFSET_OPTIONS, parseGmtOffsetMinutes, formatOffsetLabel } from "@/lib/timezone";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -230,7 +232,7 @@ export default function SettingsPage() {
 
   const accountForm = useForm<z.infer<typeof accountSchema>>({
     resolver: zodResolver(accountSchema),
-    defaultValues: { timezone: "UTC", defaultRiskPct: 1.0, dailyTargetPct: 2.0, nickname: "" }
+    defaultValues: { timezone: "GMT+00:00", defaultRiskPct: 1.0, dailyTargetPct: 2.0, nickname: "" }
   });
 
   const tgForm = useForm<z.infer<typeof telegramSchema>>({
@@ -247,7 +249,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (accountSettings && !accInit.current) {
       accountForm.reset({
-        timezone: accountSettings.timezone,
+        timezone: formatOffsetLabel(parseGmtOffsetMinutes(accountSettings.timezone)),
         defaultRiskPct: accountSettings.defaultRiskPct || 1.0,
         dailyTargetPct: accountSettings.dailyTargetPct || 2.0,
         nickname: accountSettings.nickname ?? "",
@@ -324,7 +326,21 @@ export default function SettingsPage() {
                     <FormField control={accountForm.control} name="timezone" render={({ field }) => (
                       <FormItem>
                         <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">System Timezone</FormLabel>
-                        <FormControl><Input className="font-mono bg-input" {...field} /></FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="font-mono bg-input">
+                              <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {GMT_OFFSET_OPTIONS.map((tz) => (
+                              <SelectItem key={tz.value} value={tz.value} className="font-mono">
+                                {tz.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground/60 font-mono">All dates/times across the terminal (calendar, sessions) are shown in this timezone.</p>
                         <FormMessage />
                       </FormItem>
                     )} />

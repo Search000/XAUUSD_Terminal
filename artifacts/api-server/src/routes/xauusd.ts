@@ -645,21 +645,60 @@ function goldImpactFor(title: string): string {
 // FRED (Federal Reserve Economic Data, St. Louis Fed) — 100% free, no paid
 // tier, unlimited requests. https://fred.stlouisfed.org/docs/api/api_key.html
 // FRED doesn't publish consensus "forecast" figures, so forecast is left
-// null rather than fabricated. "previous" is the latest known observation
-// of a representative series for that release.
+// null rather than fabricated (real data-source limitation, not a bug).
+// "actual"/"previous" ARE available from FRED's vintage (realtime)
+// observation history and are now populated below instead of always blank.
+//
+// releaseTimeEt = official U.S. Eastern-time release hour for that report
+// (used to be hardcoded to 08:30 for everything, which was wrong for
+// FOMC — the statement/rate decision drops at 14:00 ET, not 08:30 ET).
 const FRED_RELEASES: Array<{
   id: number;
   title: string;
   series: string;
   impact: "low" | "medium" | "high";
+  releaseTimeEt: string;
 }> = [
-  { id: 10, title: "Consumer Price Index (CPI)", series: "CPIAUCSL", impact: "high" },
-  { id: 50, title: "Employment Situation (Non-Farm Payrolls)", series: "PAYEMS", impact: "high" },
-  { id: 53, title: "Gross Domestic Product (GDP)", series: "GDP", impact: "high" },
-  { id: 101, title: "FOMC Press Release / Rate Decision", series: "FEDFUNDS", impact: "high" },
-  { id: 46, title: "Producer Price Index (PPI)", series: "PPIACO", impact: "medium" },
-  { id: 9, title: "Retail Sales", series: "RSAFS", impact: "medium" },
+  { id: 10, title: "Consumer Price Index (CPI)", series: "CPIAUCSL", impact: "high", releaseTimeEt: "08:30" },
+  { id: 50, title: "Employment Situation (Non-Farm Payrolls)", series: "PAYEMS", impact: "high", releaseTimeEt: "08:30" },
+  { id: 53, title: "Gross Domestic Product (GDP)", series: "GDP", impact: "high", releaseTimeEt: "08:30" },
+  { id: 101, title: "FOMC Press Release / Rate Decision", series: "FEDFUNDS", impact: "high", releaseTimeEt: "14:00" },
+  { id: 46, title: "Producer Price Index (PPI)", series: "PPIACO", impact: "medium", releaseTimeEt: "08:30" },
+  { id: 9, title: "Retail Sales", series: "RSAFS", impact: "medium", releaseTimeEt: "08:30" },
 ];
+
+// Convert a US-Eastern wall-clock date+time ("2026-07-30", "08:30") into a
+// correct UTC ISO string, accounting for EST/EDT (DST) automatically. Uses
+// only built-in Intl — no extra deps, no network call.
+function etWallTimeToUtcIso(dateStr: string, timeStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [hh, mm] = timeStr.split(":").map(Number);
+  const guessUtc = Date.UTC(y, m - 1, d, hh, mm);
+
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts = Object.fromEntries(
+    fmt.formatToParts(new Date(guessUtc)).map((p) => [p.type, p.value]),
+  );
+  const readAsEt = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    parts.hour === "24" ? 0 : Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  const offset = guessUtc - readAsEt;
+  return new Date(guessUtc + offset).toISOString();
+}
 
 async function fredGet(apiKey: string, path: string, params: Record<string, string | number>): Promise<any> {
   const url = new URL(`https://api.stlouisfed.org/fred/${path}`);
@@ -693,6 +732,7 @@ async function fetchLiveCalendar(): Promise<any[]> {
     .split("T")[0];
 
   const events: any[] = [];
+  const todayStr = today.toISOString().split("T")[0];
 
   for (const rel of FRED_RELEASES) {
     try {
@@ -702,44 +742,60 @@ async function fetchLiveCalendar(): Promise<any[]> {
         realtime_end: until,
         include_release_dates_with_no_data: "false",
       });
-      const dates: Array<{ date: string }> = (datesData?.release_dates ?? []).filter(
-        (d: any) => d?.date >= from && d?.date <= until,
-      );
+      const dates: Array<{ date: string }> = (datesData?.release_dates ?? [])
+        .filter((d: any) => d?.date >= from && d?.date <= until)
+        .sort((a: any, b: any) => a.date.localeCompare(b.date));
       if (dates.length === 0) continue;
 
-      let previous: string | null = null;
-      try {
-        const obs = await fredGet(apiKey, "series/observations", {
-          series_id: rel.series,
-          sort_order: "desc",
-          limit: 1,
-        });
-        previous = obs?.observations?.[0]?.value ?? null;
-      } catch {
-        // representative series lookup is best-effort; skip on failure
-      }
+      // Walk releases oldest -> newest. For each release date that's already
+      // happened, ask FRED what the series value was "as known on that date"
+      // (a vintage/realtime lookup) — that's the true "actual" print for
+      // that release. The actual from the prior release becomes "previous"
+      // for the next one, giving a correct chain instead of a single static
+      // "latest observation" reused for every row.
+      let runningPrevious: string | null = null;
 
       for (const d of dates) {
+        let actual: string | null = null;
+        if (d.date <= todayStr) {
+          try {
+            const obs = await fredGet(apiKey, "series/observations", {
+              series_id: rel.series,
+              realtime_start: d.date,
+              realtime_end: d.date,
+              sort_order: "desc",
+              limit: 1,
+            });
+            const val = obs?.observations?.[0]?.value;
+            if (val && val !== ".") actual = val;
+          } catch {
+            // vintage lookup is best-effort; leave actual null on failure
+          }
+        }
+
         events.push({
           id: `fred-${rel.id}-${d.date}`,
           title: rel.title,
           country: "USD",
           date: d.date,
-          time: "08:30",
+          time: rel.releaseTimeEt,
+          datetimeUtc: etWallTimeToUtcIso(d.date, rel.releaseTimeEt),
           impact: rel.impact,
           forecast: null,
-          previous,
-          actual: null,
+          previous: runningPrevious,
+          actual,
           description: `${rel.title} release, scheduled via the FRED (St. Louis Fed) release calendar.`,
           goldImpact: goldImpactFor(rel.title),
         });
+
+        if (actual !== null) runningPrevious = actual;
       }
     } catch (err) {
       logger.warn({ err, release: rel.id }, "FRED release/dates fetch failed for one release");
     }
   }
 
-  events.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  events.sort((a, b) => a.datetimeUtc.localeCompare(b.datetimeUtc));
   return events;
 }
 

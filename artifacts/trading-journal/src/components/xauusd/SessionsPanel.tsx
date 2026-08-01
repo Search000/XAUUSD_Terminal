@@ -5,9 +5,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { API_BASE } from '@/lib/api';
+import { useSystemTimezone, minsUtcToZonedTime } from '@/lib/timezone';
 
 // API returns: [{ id, name, open, close, timezone, color, active, minsUntilOpen }]
-// open/close = minutes from midnight UTC
+// open/close = minutes from midnight UTC — converted below to the user's
+// chosen System Timezone (Settings → System Timezone) for display.
 
 interface Session {
   id: string;
@@ -18,12 +20,6 @@ interface Session {
   color: string;
   active: boolean;
   minsUntilOpen: number;
-}
-
-function minsToUtc(mins: number) {
-  const h = Math.floor(mins / 60) % 24;
-  const m = mins % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 function formatCountdown(mins: number) {
@@ -47,8 +43,10 @@ export function SessionsPanel() {
   });
 
   const sessions: Session[] = raw ?? [];
+  const { offsetMinutes, label: tzLabel } = useSystemTimezone();
   const now = new Date();
-  const utcTime = `${String(now.getUTCHours()).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')} UTC`;
+  const nowMinsUtc = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const clockTime = `${minsUtcToZonedTime(nowMinsUtc, offsetMinutes)} ${tzLabel}`;
 
   return (
     <Card className="border-[#2a2a3e]" style={{ background: '#0d0d14' }}>
@@ -57,7 +55,7 @@ export function SessionsPanel() {
           Trading Sessions
         </CardTitle>
         <div className="text-[10px] font-mono text-[#758696] flex items-center gap-1 border border-[#2a2a3e] px-1.5 py-0.5 rounded bg-[#1a1a2e]">
-          <Clock className="w-3 h-3" /> {utcTime}
+          <Clock className="w-3 h-3" /> {clockTime}
         </div>
       </CardHeader>
       <CardContent className="p-3 pt-1">
@@ -99,7 +97,7 @@ export function SessionsPanel() {
 
                 <div className="text-right">
                   <div className="font-mono text-[10px] text-[#758696]">
-                    {minsToUtc(session.open)} – {minsToUtc(session.close)}
+                    {minsUtcToZonedTime(session.open, offsetMinutes)} – {minsUtcToZonedTime(session.close, offsetMinutes)}
                   </div>
                   <div className={cn(
                     'text-[10px] font-mono font-bold uppercase mt-0.5',
