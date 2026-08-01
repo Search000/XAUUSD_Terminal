@@ -9,41 +9,8 @@ import { useGetAccountSettings } from '@workspace/api-client-react';
  * do their own (inconsistent) conversion.
  */
 
-// Fixed list of valid GMT offsets — used to constrain the Settings field to
-// values we can actually parse, instead of a freeform text input that could
-// hold anything (which was the root cause of the timezone setting silently
-// not doing anything).
-export const GMT_OFFSET_OPTIONS: Array<{ value: string; label: string }> = [
-  '-12:00', '-11:00', '-10:00', '-09:30', '-09:00', '-08:00', '-07:00', '-06:00',
-  '-05:00', '-04:00', '-03:30', '-03:00', '-02:00', '-01:00', '+00:00', '+01:00',
-  '+02:00', '+03:00', '+03:30', '+04:00', '+04:30', '+05:00', '+05:30', '+05:45',
-  '+06:00', '+06:30', '+07:00', '+08:00', '+08:45', '+09:00', '+09:30', '+10:00',
-  '+10:30', '+11:00', '+12:00', '+12:45', '+13:00', '+14:00',
-].map((offset) => ({ value: `GMT${offset}`, label: `GMT${offset}` }));
-
-/** Parse a saved timezone string like "GMT+6" into minutes offset from UTC. */
-export function parseGmtOffsetMinutes(tz: string | null | undefined): number {
-  if (!tz) return 0;
-  const trimmed = tz.trim().toUpperCase();
-  if (trimmed === 'UTC' || trimmed === 'GMT') return 0;
-  const m = trimmed.match(/^GMT\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$/);
-  if (!m) return 0;
-  const sign = m[1] === '-' ? -1 : 1;
-  const hours = parseInt(m[2], 10);
-  const mins = m[3] ? parseInt(m[3], 10) : 0;
-  return sign * (hours * 60 + mins);
-}
-
-export function formatOffsetLabel(offsetMinutes: number): string {
-  const sign = offsetMinutes < 0 ? '-' : '+';
-  const abs = Math.abs(offsetMinutes);
-  const h = String(Math.floor(abs / 60)).padStart(2, '0');
-  const m = String(abs % 60).padStart(2, '0');
-  return `GMT${sign}${h}:${m}`;
-}
-
 // Representative city for each supported GMT offset — shown next to the
-// raw "GMT+HH:MM" label so it reads as a place, not just a number.
+// raw "GMT+HH:MM" value so it reads as a place, not just a number.
 // Where several major cities share an offset, one well-known city is
 // picked as the label (this is a display hint only, not a strict IANA
 // timezone lookup, since the app only stores a fixed UTC offset).
@@ -91,6 +58,46 @@ const OFFSET_CITY_NAMES: Record<number, string> = {
 /** City name for a GMT offset (in minutes), or null if none mapped. */
 export function cityForOffset(offsetMinutes: number): string | null {
   return OFFSET_CITY_NAMES[offsetMinutes] ?? null;
+}
+
+// Fixed list of valid GMT offsets — used to constrain the Settings field to
+// values we can actually parse, instead of a freeform text input that could
+// hold anything (which was the root cause of the timezone setting silently
+// not doing anything). Each label includes its representative city, e.g.
+// "GMT+06:00 (Dhaka)", so the Settings dropdown reads as a place, not a
+// bare offset number.
+export const GMT_OFFSET_OPTIONS: Array<{ value: string; label: string }> = [
+  '-12:00', '-11:00', '-10:00', '-09:30', '-09:00', '-08:00', '-07:00', '-06:00',
+  '-05:00', '-04:00', '-03:30', '-03:00', '-02:00', '-01:00', '+00:00', '+01:00',
+  '+02:00', '+03:00', '+03:30', '+04:00', '+04:30', '+05:00', '+05:30', '+05:45',
+  '+06:00', '+06:30', '+07:00', '+08:00', '+08:45', '+09:00', '+09:30', '+10:00',
+  '+10:30', '+11:00', '+12:00', '+12:45', '+13:00', '+14:00',
+].map((offset) => {
+  const value = `GMT${offset}`;
+  const minutes = parseGmtOffsetMinutes(value);
+  const city = OFFSET_CITY_NAMES[minutes];
+  return { value, label: city ? `${value} (${city})` : value };
+});
+
+/** Parse a saved timezone string like "GMT+6" into minutes offset from UTC. */
+export function parseGmtOffsetMinutes(tz: string | null | undefined): number {
+  if (!tz) return 0;
+  const trimmed = tz.trim().toUpperCase();
+  if (trimmed === 'UTC' || trimmed === 'GMT') return 0;
+  const m = trimmed.match(/^GMT\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$/);
+  if (!m) return 0;
+  const sign = m[1] === '-' ? -1 : 1;
+  const hours = parseInt(m[2], 10);
+  const mins = m[3] ? parseInt(m[3], 10) : 0;
+  return sign * (hours * 60 + mins);
+}
+
+export function formatOffsetLabel(offsetMinutes: number): string {
+  const sign = offsetMinutes < 0 ? '-' : '+';
+  const abs = Math.abs(offsetMinutes);
+  const h = String(Math.floor(abs / 60)).padStart(2, '0');
+  const m = String(abs % 60).padStart(2, '0');
+  return `GMT${sign}${h}:${m}`;
 }
 
 /** "GMT+06:00 (Dhaka)" style label — falls back to the plain offset if no city is mapped. */
