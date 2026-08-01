@@ -717,7 +717,78 @@ async function fredGet(apiKey: string, path: string, params: Record<string, stri
   }
 }
 
-async function fetchLiveCalendar(): Promise<any[]> {
+// ─── FMP (financialmodelingprep.com) — primary calendar source ─────────────
+// Uses the current "stable" endpoint (legacy /api/v3 endpoints are dead as
+// of Aug 2025). Gives real forecast/previous/actual numbers, unlike FRED.
+// Falls back to FRED below if FMP_API_KEY is missing or the request fails.
+async function fetchFmpCalendar(): Promise<any[]> {
+  const apiKey = process.env["FMP_API_KEY"];
+  if (!apiKey) {
+    throw new Error("FMP_API_KEY not set");
+  }
+
+  const today = new Date();
+  const from = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+  const until = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+
+  const url = `https://financialmodelingprep.com/stable/economic-calendar?from=${from}&to=${until}&apikey=${apiKey}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  let data: any;
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`FMP error: ${res.status}`);
+    data = await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!Array.isArray(data)) throw new Error("FMP economic-calendar returned unexpected payload");
+
+  const events = data
+    .filter((e: any) => e?.currency === "USD")
+    .filter((e: any) => {
+      const title = String(e?.event ?? "").toLowerCase();
+      return GOLD_RELEVANT_KEYWORDS.some((kw) => title.includes(kw));
+    })
+    .map((e: any) => {
+      const dateStr = String(e?.date ?? "").split(" ")[0] ?? "";
+      const timeStr = String(e?.date ?? "").split(" ")[1]?.slice(0, 5) ?? "08:30";
+      let datetimeUtc: string;
+      try {
+        datetimeUtc = new Date(e.date).toISOString();
+      } catch {
+        datetimeUtc = etWallTimeToUtcIso(dateStr, timeStr);
+      }
+      const impact: "low" | "medium" | "high" =
+        e?.impact === "High" ? "high" : e?.impact === "Low" ? "low" : "medium";
+
+      return {
+        id: `fmp-${e?.event}-${dateStr}`.replace(/\s+/g, "_"),
+        title: e?.event ?? "Economic Event",
+        country: "USD",
+        date: dateStr,
+        time: timeStr,
+        datetimeUtc,
+        impact,
+        forecast: e?.estimate ?? e?.forecast ?? null,
+        previous: e?.previous ?? null,
+        actual: e?.actual ?? null,
+        description: `${e?.event ?? "Economic event"} release, scheduled via the FMP economic calendar.`,
+        goldImpact: goldImpactFor(String(e?.event ?? "")),
+      };
+    });
+
+  events.sort((a, b) => a.datetimeUtc.localeCompare(b.datetimeUtc));
+  return events;
+}
+
+async function fetchFredCalendar(): Promise<any[]> {
   const apiKey = process.env["FRED_API_KEY"];
   if (!apiKey) {
     throw new Error("FRED_API_KEY not set");
@@ -807,14 +878,28 @@ router.get("/xauusd/calendar", async (_req, res) => {
     return;
   }
 
+  // Try FMP first (real forecast/previous/actual numbers). If it's not
+  // configured or fails, fall back to FRED (free, no paid tier, but no
+  // forecast figures). If both fail, serve stale cache instead of nothing.
   try {
-    const events = await fetchLiveCalendar();
-    if (events.length === 0) throw new Error("Live calendar feed returned 0 relevant events");
+    const events = await fetchFmpCalendar();
+    if (events.length === 0) throw new Error("FMP calendar returned 0 relevant events");
+    calendarCache = events;
+    calendarCacheAt = now;
+    res.json(calendarCache);
+    return;
+  } catch (fmpErr) {
+    logger.warn({ err: fmpErr }, "xauusd/calendar: FMP source unavailable, falling back to FRED");
+  }
+
+  try {
+    const events = await fetchFredCalendar();
+    if (events.length === 0) throw new Error("FRED calendar returned 0 relevant events");
     calendarCache = events;
     calendarCacheAt = now;
     res.json(calendarCache);
   } catch (err) {
-    logger.warn({ err }, "xauusd/calendar: live feed unavailable, no cached data to serve");
+    logger.warn({ err }, "xauusd/calendar: both live feeds unavailable, no cached data to serve");
     if (calendarCache) {
       res.json(calendarCache);
       return;
