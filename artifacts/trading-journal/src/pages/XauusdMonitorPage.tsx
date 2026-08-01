@@ -18,7 +18,6 @@ import { FedRateTracker } from '@/components/xauusd/FedRateTracker';
 import { CentralBankHoldings } from '@/components/xauusd/CentralBankHoldings';
 import { MiningStocks } from '@/components/xauusd/MiningStocks';
 import { HistoricalEvents } from '@/components/xauusd/HistoricalEvents';
-import { TerminalMode } from '@/components/xauusd/TerminalMode';
 import { VolumeProfilePanel } from '@/components/xauusd/VolumeProfilePanel';
 import { FuturesCurvePanel } from '@/components/xauusd/FuturesCurvePanel';
 
@@ -38,20 +37,8 @@ import { FuturesCurvePanel } from '@/components/xauusd/FuturesCurvePanel';
 const BATCH_DELAYS = [0, 600, 1400, 2400];
 
 export function XauusdMonitorPage() {
-  const [terminalOpen, setTerminalOpen] = useState(false);
   // batch goes 1 → 2 → 3 → 4 as timers fire
   const [batch, setBatch] = useState(1);
-
-  /* keyboard shortcut T to toggle terminal */
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if (e.key === 't' || e.key === 'T') setTerminalOpen(v => !v);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
 
   /* progressive batch activation */
   useEffect(() => {
@@ -63,32 +50,14 @@ export function XauusdMonitorPage() {
 
   return (
     <AppLayout>
-      {/* Bloomberg Terminal overlay */}
-      {terminalOpen && <TerminalMode onClose={() => setTerminalOpen(false)} />}
-
       <div className="min-h-screen bg-background text-foreground p-2 md:p-3 font-sans selection:bg-primary/30">
         <div className="max-w-[1800px] mx-auto flex flex-col gap-3">
 
-          {/* ── Header row: LiveTicker + Terminal toggle ─────────────── */}
+          {/* ── Header row: LiveTicker ─────────────── */}
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <LiveTicker />
             </div>
-            <button
-              onClick={() => setTerminalOpen(true)}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-mono font-bold tracking-widest transition-all border"
-              style={{
-                background: 'rgba(0,255,65,0.07)',
-                borderColor: 'rgba(0,255,65,0.3)',
-                color: '#00ff41',
-                letterSpacing: 3,
-              }}
-              title="Press T to toggle"
-            >
-              <span style={{ fontSize: 9 }}>◈</span>
-              TERMINAL
-              <span style={{ opacity: 0.5, fontSize: 9, letterSpacing: 1 }}>[T]</span>
-            </button>
           </div>
 
           {/* ── Row 1: Chart (big) + Right sidebar ───────────────────── */}
