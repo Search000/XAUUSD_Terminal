@@ -15,7 +15,7 @@ interface CBHResponse {
 
 export function CentralBankHoldings() {
   const canvasRef    = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const [hovered, setHovered]   = useState<number | null>(null);
   const [canvasW, setCanvasW]   = useState(600);
 
@@ -33,14 +33,18 @@ export function CentralBankHoldings() {
   // Top 12
   const holdings = (data?.holdings ?? []).slice(0, 12);
 
-  /* ── Resize observer ── */
+  /* ── Resize observer ──
+     Uses a state-backed callback ref (not useRef) because this container
+     only mounts once loading finishes — a plain useRef + useEffect([]) would
+     run before the node exists and never observe it, leaving canvasW stuck
+     at its 600px default and overflowing narrower cards. */
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!containerEl) return;
+    setCanvasW(containerEl.clientWidth);
     const ro = new ResizeObserver(([e]) => setCanvasW(e.contentRect.width));
-    ro.observe(el);
+    ro.observe(containerEl);
     return () => ro.disconnect();
-  }, []);
+  }, [containerEl]);
 
   /* ── Draw ── */
   useEffect(() => {
@@ -170,11 +174,11 @@ export function CentralBankHoldings() {
           No data available
         </div>
       ) : (
-        <div ref={containerRef} className="w-full">
+        <div ref={setContainerEl} className="w-full">
           <canvas
             ref={canvasRef}
             className="w-full cursor-crosshair"
-            style={{ height: 280 }}
+            style={{ height: 280, maxWidth: '100%' }}
             onMouseMove={onMouseMove}
             onMouseLeave={() => setHovered(null)}
           />

@@ -157,7 +157,7 @@ export function XauusdMonitorPage() {
             </div>
 
             {/* ── Right sidebar ────────────────────────────────────── */}
-            <div className="xl:col-span-3 flex flex-col gap-3 xl:sticky xl:top-3 xl:self-start">
+            <div className="xl:col-span-3 flex flex-col gap-3">
               {/* BATCH 1 */}
               <TechnicalsPanel />
               {/* BATCH 2 */}
