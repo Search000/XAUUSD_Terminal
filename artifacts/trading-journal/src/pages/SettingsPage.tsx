@@ -282,7 +282,7 @@ export default function SettingsPage() {
         <Tabs defaultValue="account" className="flex-1">
           <TabsList className="bg-card border border-border flex-wrap h-auto gap-1">
             <TabsTrigger value="account" className="data-[state=active]:bg-secondary font-mono text-xs uppercase tracking-widest"><Wallet className="w-4 h-4 mr-2" /> Account parameters</TabsTrigger>
-            <TabsTrigger value="telegram" className="data-[state=active]:bg-secondary font-mono text-xs uppercase tracking-widest"><Bell className="w-4 h-4 mr-2" /> Telegram Bridge</TabsTrigger>
+            <TabsTrigger value="telegram" className="data-[state=active]:bg-secondary font-mono text-xs uppercase tracking-widest"><Bell className="w-4 h-4 mr-2" /> Telegram</TabsTrigger>
             <TabsTrigger value="security" className="data-[state=active]:bg-secondary font-mono text-xs uppercase tracking-widest"><Lock className="w-4 h-4 mr-2" /> Security</TabsTrigger>
             <TabsTrigger value="support" className="data-[state=active]:bg-secondary font-mono text-xs uppercase tracking-widest"><MessageCircle className="w-4 h-4 mr-2" /> Support</TabsTrigger>
           </TabsList>
