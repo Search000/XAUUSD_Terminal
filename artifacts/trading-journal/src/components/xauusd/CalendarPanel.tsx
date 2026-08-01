@@ -56,7 +56,7 @@ function ActualVsForecast({ actual, forecast }: { actual: string | null; forecas
 export function CalendarPanel() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const { offsetMinutes, label: tzLabel } = useSystemTimezone();
+  const { offsetMinutes, labelWithCity: tzLabelWithCity } = useSystemTimezone();
 
   const { data, isLoading } = useQuery<CalendarEvent[]>({
     queryKey: ['/api/xauusd/calendar'],
@@ -94,7 +94,7 @@ export function CalendarPanel() {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-[#2a2a3e]">
         <Calendar className="w-4 h-4 text-[#f0b90b]" />
         <span className="text-sm font-bold text-[#d1d4dc] tracking-wide">Economic Calendar</span>
-        <span className="ml-auto text-[10px] font-mono text-[#9598a1]">GOLD-RELEVANT EVENTS · TIMES IN {tzLabel}</span>
+        <span className="ml-auto text-[10px] font-mono text-[#9598a1]">GOLD-RELEVANT EVENTS · TIMES IN {tzLabelWithCity}</span>
       </div>
 
       {/* Date navigation */}

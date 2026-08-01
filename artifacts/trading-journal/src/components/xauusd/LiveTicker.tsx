@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { Activity, WifiOff, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
+import { useSystemTimezone, minsUtcToZonedTime } from '@/lib/timezone';
 
 interface TickData {
   price: number;
@@ -156,7 +157,23 @@ function useUtcClock() {
   return time;
 }
 
-interface LiveFeedTick {
+function useZonedClock(offsetMinutes: number) {
+  const compute = () => {
+    const totalMins = Math.floor(Date.now() / 60000) + offsetMinutes;
+    const mins = ((totalMins % 1440) + 1440) % 1440;
+    const h = String(Math.floor(mins / 60)).padStart(2, '0');
+    const m = String(mins % 60).padStart(2, '0');
+    const now = new Date();
+    const s = String(now.getUTCSeconds()).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  };
+  const [time, setTime] = useState(compute);
+  useEffect(() => {
+    const id = setInterval(() => setTime(compute()), 1000);
+    return () => clearInterval(id);
+  }, [offsetMinutes]);
+  return time;
+}
   symbol: string;
   price: number;
   bid?: number;
@@ -173,6 +190,8 @@ export function LiveTicker() {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevPriceRef = useRef<number | null>(null);
   const utcTime = useUtcClock();
+  const { offsetMinutes, labelWithCity: localTzLabel } = useSystemTimezone();
+  const localTime = useZonedClock(offsetMinutes);
   const { getToken } = useAuth();
 
   // Nothing that only changes while the market trades should keep polling
@@ -452,10 +471,16 @@ export function LiveTicker() {
             </div>
           )}
 
-          {/* Live UTC Clock */}
-          <div className="sm:ml-auto text-[10px] font-mono shrink-0 flex flex-col items-end gap-0.5">
-            <span className="text-[#758696] text-[9px] uppercase tracking-widest">UTC</span>
-            <span className="text-[#d1d4dc] font-bold tabular-nums text-[13px]">{utcTime}</span>
+          {/* Live UTC Clock + local city clock */}
+          <div className="sm:ml-auto flex items-end gap-3 shrink-0">
+            <div className="text-[10px] font-mono flex flex-col items-end gap-0.5">
+              <span className="text-[#758696] text-[9px] uppercase tracking-widest">UTC</span>
+              <span className="text-[#d1d4dc] font-bold tabular-nums text-[13px]">{utcTime}</span>
+            </div>
+            <div className="text-[10px] font-mono flex flex-col items-end gap-0.5">
+              <span className="text-[#758696] text-[9px] uppercase tracking-widest">{localTzLabel}</span>
+              <span className="text-[#d1d4dc] font-bold tabular-nums text-[13px]">{localTime}</span>
+            </div>
           </div>
         </div>
 

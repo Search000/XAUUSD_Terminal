@@ -42,6 +42,64 @@ export function formatOffsetLabel(offsetMinutes: number): string {
   return `GMT${sign}${h}:${m}`;
 }
 
+// Representative city for each supported GMT offset — shown next to the
+// raw "GMT+HH:MM" label so it reads as a place, not just a number.
+// Where several major cities share an offset, one well-known city is
+// picked as the label (this is a display hint only, not a strict IANA
+// timezone lookup, since the app only stores a fixed UTC offset).
+const OFFSET_CITY_NAMES: Record<number, string> = {
+  [-12 * 60]: 'Baker Island',
+  [-11 * 60]: 'Pago Pago',
+  [-10 * 60]: 'Honolulu',
+  [-9 * 60 - 30]: 'Marquesas Islands',
+  [-9 * 60]: 'Anchorage',
+  [-8 * 60]: 'Los Angeles',
+  [-7 * 60]: 'Denver',
+  [-6 * 60]: 'Chicago',
+  [-5 * 60]: 'New York',
+  [-4 * 60]: 'Santiago',
+  [-3 * 60 - 30]: 'St. John\'s',
+  [-3 * 60]: 'São Paulo',
+  [-2 * 60]: 'South Georgia',
+  [-1 * 60]: 'Azores',
+  [0]: 'London',
+  [1 * 60]: 'Paris',
+  [2 * 60]: 'Cairo',
+  [3 * 60]: 'Moscow',
+  [3 * 60 + 30]: 'Tehran',
+  [4 * 60]: 'Dubai',
+  [4 * 60 + 30]: 'Kabul',
+  [5 * 60]: 'Karachi',
+  [5 * 60 + 30]: 'Mumbai',
+  [5 * 60 + 45]: 'Kathmandu',
+  [6 * 60]: 'Dhaka',
+  [6 * 60 + 30]: 'Yangon',
+  [7 * 60]: 'Bangkok',
+  [8 * 60]: 'Singapore',
+  [8 * 60 + 45]: 'Eucla',
+  [9 * 60]: 'Tokyo',
+  [9 * 60 + 30]: 'Adelaide',
+  [10 * 60]: 'Sydney',
+  [10 * 60 + 30]: 'Lord Howe Island',
+  [11 * 60]: 'Nouméa',
+  [12 * 60]: 'Auckland',
+  [12 * 60 + 45]: 'Chatham Islands',
+  [13 * 60]: 'Nuku\'alofa',
+  [14 * 60]: 'Kiritimati',
+};
+
+/** City name for a GMT offset (in minutes), or null if none mapped. */
+export function cityForOffset(offsetMinutes: number): string | null {
+  return OFFSET_CITY_NAMES[offsetMinutes] ?? null;
+}
+
+/** "GMT+06:00 (Dhaka)" style label — falls back to the plain offset if no city is mapped. */
+export function formatOffsetLabelWithCity(offsetMinutes: number): string {
+  const base = formatOffsetLabel(offsetMinutes);
+  const city = cityForOffset(offsetMinutes);
+  return city ? `${base} (${city})` : base;
+}
+
 /** Shift a UTC instant by the given offset, returning a Date whose UTC-* fields equal local wall time in that zone. */
 function toZoned(utc: Date, offsetMinutes: number): Date {
   return new Date(utc.getTime() + offsetMinutes * 60_000);
@@ -89,9 +147,13 @@ export function minsUtcToZonedTime(mins: number, offsetMinutes: number): string 
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-/** Hook: reads the user's saved System Timezone setting and returns { offsetMinutes, label }. Defaults to UTC while loading / if unset. */
-export function useSystemTimezone(): { offsetMinutes: number; label: string } {
+/** Hook: reads the user's saved System Timezone setting and returns { offsetMinutes, label, labelWithCity }. Defaults to UTC while loading / if unset. */
+export function useSystemTimezone(): { offsetMinutes: number; label: string; labelWithCity: string } {
   const { data } = useGetAccountSettings();
   const offsetMinutes = parseGmtOffsetMinutes(data?.timezone);
-  return { offsetMinutes, label: formatOffsetLabel(offsetMinutes) };
+  return {
+    offsetMinutes,
+    label: formatOffsetLabel(offsetMinutes),
+    labelWithCity: formatOffsetLabelWithCity(offsetMinutes),
+  };
 }

@@ -43,7 +43,7 @@ export function SessionsPanel() {
   });
 
   const sessions: Session[] = raw ?? [];
-  const { offsetMinutes, label: tzLabel } = useSystemTimezone();
+  const { offsetMinutes, labelWithCity: tzLabel } = useSystemTimezone();
   const now = new Date();
   const nowMinsUtc = now.getUTCHours() * 60 + now.getUTCMinutes();
   const clockTime = `${minsUtcToZonedTime(nowMinsUtc, offsetMinutes)} ${tzLabel}`;
