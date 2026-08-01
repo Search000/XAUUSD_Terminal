@@ -788,16 +788,17 @@ async function fetchFredCalendar(): Promise<any[]> {
               .sort((a: any, b: any) => a.date.localeCompare(b.date));
       if (dates.length === 0) continue;
 
-      // Walk releases oldest -> newest. For each release date that's already
-      // happened, ask FRED what the series value was "as known on that date"
-      // (a vintage/realtime lookup) — that's the true "actual" print for
-      // that release. The actual from the prior release becomes "previous"
-      // for the next one, giving a correct chain instead of a single static
-      // "latest observation" reused for every row.
-      let runningPrevious: string | null = null;
-
+      // For each release date that's already happened, ask FRED what the
+      // series looked like "as known on that date" (a vintage/realtime
+      // lookup), pulling the 2 most recent observations at once: [0] is
+      // the actual just-released print, [1] is the prior period's value
+      // (i.e. "previous"). Pulling both directly — instead of chaining
+      // actuals across release dates within the narrow ±30/14-day window —
+      // means "previous" is correct even when only one release date for
+      // a monthly/quarterly series falls inside that window.
       for (const d of dates) {
         let actual: string | null = null;
+        let previous: string | null = null;
         if (d.date <= todayStr) {
           try {
             const obs = await fredGet(apiKey, "series/observations", {
@@ -806,12 +807,15 @@ async function fetchFredCalendar(): Promise<any[]> {
               realtime_start: d.date,
               realtime_end: d.date,
               sort_order: "desc",
-              limit: 1,
+              limit: 2,
             });
-            const val = obs?.observations?.[0]?.value;
-            if (val && val !== ".") actual = formatFredValue(val, rel.format);
+            const observations = obs?.observations ?? [];
+            const actualVal = observations[0]?.value;
+            const prevVal = observations[1]?.value;
+            if (actualVal && actualVal !== ".") actual = formatFredValue(actualVal, rel.format);
+            if (prevVal && prevVal !== ".") previous = formatFredValue(prevVal, rel.format);
           } catch {
-            // vintage lookup is best-effort; leave actual null on failure
+            // vintage lookup is best-effort; leave actual/previous null on failure
           }
         }
 
@@ -824,13 +828,11 @@ async function fetchFredCalendar(): Promise<any[]> {
           datetimeUtc: etWallTimeToUtcIso(d.date, rel.releaseTimeEt),
           impact: rel.impact,
           forecast: null,
-          previous: runningPrevious,
+          previous,
           actual,
           description: `${rel.title} release, scheduled via the FRED (St. Louis Fed) release calendar.`,
           goldImpact: goldImpactFor(rel.title),
         });
-
-        if (actual !== null) runningPrevious = actual;
       }
     } catch (err) {
       logger.warn({ err, release: rel.id }, "FRED release/dates fetch failed for one release");
