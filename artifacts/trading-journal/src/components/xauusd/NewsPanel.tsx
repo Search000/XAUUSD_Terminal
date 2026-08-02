@@ -153,7 +153,11 @@ export function NewsPanel() {
     });
   }, [data]);
 
-  const filtered = filter === 'all' ? scored : scored.filter(i => i.computed.label === filter);
+  // Only show news that actually has a bull/bear signal — neutral articles
+  // (no clear market-moving language) are hidden from the feed entirely.
+  const relevant = scored.filter(i => i.computed.label !== 'neutral');
+
+  const filtered = filter === 'all' ? relevant : relevant.filter(i => i.computed.label === filter);
 
   const tabs: { key: Filter; label: string }[] = [
     { key: 'all',     label: 'All' },
@@ -186,7 +190,7 @@ export function NewsPanel() {
       </CardHeader>
 
       {/* Sentiment summary bar */}
-      {!isLoading && scored.length > 0 && <SentimentBar items={scored} />}
+      {!isLoading && relevant.length > 0 && <SentimentBar items={relevant} />}
 
       <CardContent className="p-0 overflow-y-auto flex-1">
         {isLoading || !data ? (
@@ -225,7 +229,7 @@ export function NewsPanel() {
             ))}
             {filtered.length === 0 && (
               <div className="p-8 text-center text-xs text-muted-foreground">
-                {scored.length === 0 ? "No news available right now" : `No ${filter} news found`}
+                {relevant.length === 0 ? "No news available right now" : `No ${filter} news found`}
               </div>
             )}
           </div>
