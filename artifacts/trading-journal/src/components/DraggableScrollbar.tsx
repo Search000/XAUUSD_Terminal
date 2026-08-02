@@ -105,7 +105,7 @@ export function DraggableScrollbar() {
         right: 0,
         width: TRACK_WIDTH,
         height: '100vh',
-        zIndex: 9999,
+        zIndex: 1500,
         background: 'rgba(255,255,255,0.03)',
         touchAction: 'none',
       }}
