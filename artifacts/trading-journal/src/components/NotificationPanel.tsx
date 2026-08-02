@@ -393,7 +393,9 @@ export function NotificationPanel() {
                         </div>
 
                         {items.map((notif) => {
-                          const isUnread = !notif.isSeen;
+                          // List items always render as "read" (no bold/dot) —
+                          // only the bell badge count tracks per-item isSeen.
+                          const isUnread = false;
 
                           return (
                             <button
