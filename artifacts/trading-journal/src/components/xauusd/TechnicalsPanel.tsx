@@ -15,7 +15,7 @@ const fmtN = (n: unknown): string => {
 // by this fixed amount (e.g. 70 in → minus 64 → shows 6). Change this one
 // number if the broker's real quote offset changes; it applies everywhere
 // in the panel (current price, S/R levels, pivot, SMA50 in the comment line).
-const PRICE_ADJUST = -64;
+const PRICE_ADJUST = -66.17;
 
 // ─── Analysis text ────────────────────────────────────────────────────────────
 function buildAnalysis(d: any) {
