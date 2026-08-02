@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { API_BASE } from '@/lib/api';
 import { useLivePrice } from '@/hooks/use-live-price';
@@ -25,6 +25,11 @@ interface FcData {
 function fmt(n: number) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+// Manual price correction applied to all displayed prices in this panel,
+// consistent with the offset used across Order Flow, Fibonacci, Volume
+// Profile, and Technicals panels.
+const MANUAL_PRICE_OFFSET = -61.83;
 
 const STRUCTURE_META = {
   contango: {
@@ -58,7 +63,7 @@ const STRUCTURE_META = {
 };
 
 export function FuturesCurvePanel() {
-  const { marketOpen } = useLivePrice();
+  const { price: livePrice, marketOpen } = useLivePrice();
   const { data, isLoading, isError } = useQuery<FcData>({
     queryKey: ['xauusd-futures-curve'],
     queryFn: () =>
@@ -67,7 +72,30 @@ export function FuturesCurvePanel() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const meta = data ? STRUCTURE_META[data.structure] : null;
+  // The futures-curve endpoint is built from COMEX GC=F futures prices, which
+  // trade at a different absolute price than the live spot feed shown in the
+  // ticker. Rebase every row by a constant offset so the spot row lines up
+  // with the live price — the spread between expiries (what the contango/
+  // backwardation analysis actually depends on) is unchanged since every
+  // row shifts by the same amount. The offset is captured once per fetch
+  // (not recomputed on every tick) so the curve stays stable.
+  const offsetRef = useRef<number | null>(null);
+  const lastDataRef = useRef<FcData | undefined>(undefined);
+  if (data !== lastDataRef.current) {
+    lastDataRef.current = data;
+    offsetRef.current = null;
+  }
+  if (offsetRef.current === null && data && typeof livePrice === 'number') {
+    offsetRef.current = livePrice - data.spotPrice;
+  }
+  const offset = (offsetRef.current ?? 0) + MANUAL_PRICE_OFFSET;
+  const fc: FcData | null = data ? {
+    ...data,
+    spotPrice: typeof livePrice === 'number' ? livePrice + MANUAL_PRICE_OFFSET : data.spotPrice + offset,
+    rows: data.rows.map(r => ({ ...r, price: r.price + offset })),
+  } : null;
+
+  const meta = fc ? STRUCTURE_META[fc.structure] : null;
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -131,7 +159,7 @@ export function FuturesCurvePanel() {
               <span className="w-14 text-right shrink-0">Spread%</span>
             </div>
 
-            {data.rows.map((row, i) => {
+            {fc!.rows.map((row, i) => {
               const isSpot = i === 0;
               const positive = row.spread > 0;
               const negative = row.spread < 0;

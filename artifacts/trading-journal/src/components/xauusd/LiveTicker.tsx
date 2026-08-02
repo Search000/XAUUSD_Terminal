@@ -406,7 +406,7 @@ export function LiveTicker() {
                       'text-xs font-mono font-semibold',
                       isUp ? 'text-[#26a69a]' : 'text-[#ef5350]'
                     )}>
-                      ({isUp ? '+' : ''}{fmt(tick.changePct, 3)}%)
+                      ({isUp ? '+' : '-'}{fmt(Math.abs(tick.changePct), 3)}%)
                     </span>
                   </div>
                 </div>
