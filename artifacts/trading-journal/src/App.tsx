@@ -8,6 +8,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { DraggableScrollbar } from "@/components/DraggableScrollbar";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 // Pages
@@ -211,6 +212,7 @@ function ClerkProviderWithRoutes() {
             </Route>
           </Switch>
           <Toaster />
+          <DraggableScrollbar />
         </TooltipProvider>
       </QueryClientProvider>
     </ClerkProvider>
