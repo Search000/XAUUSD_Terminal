@@ -162,7 +162,7 @@ function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldT
 
       <div
         className="flex items-center h-full whitespace-nowrap"
-        style={{ animation: 'bbTape 34s linear infinite', willChange: 'transform' }}
+        style={{ animation: 'bbTape 20s linear infinite', willChange: 'transform' }}
       >
         {allCombined.map((item, i) => {
           if (item.kind === 'price') {
