@@ -129,11 +129,16 @@ export async function runMigrations(): Promise<void> {
         type       TEXT NOT NULL,
         title      TEXT NOT NULL,
         body       TEXT NOT NULL,
-        is_read    BOOLEAN NOT NULL DEFAULT FALSE,
+        is_read    BOOLEAN NOT NULL DEFAULT TRUE,
+        is_seen    BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
 
       CREATE INDEX IF NOT EXISTS notifications_user_id_idx ON notifications (user_id);
+
+      -- is_seen: UI-only badge tracking flag, decoupled from is_read (backend/Telegram sync flag)
+      ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_seen BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE notifications ALTER COLUMN is_read SET DEFAULT TRUE;
     `);
     // Contact request tables
     await client.query(`

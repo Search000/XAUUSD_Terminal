@@ -60,13 +60,15 @@ router.get("/notifications/unread-count", requireAuth, requireLicense, asyncHand
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
+  // Badge count is driven by isSeen (per-item, UI-only), NOT isRead
+  // (isRead is auto-set true on creation as a backend/Telegram-sync flag).
   const rows = await db
     .select()
     .from(notificationsTable)
     .where(
       and(
         or(eq(notificationsTable.userId, userId), eq(notificationsTable.userId, "__admin__")),
-        eq(notificationsTable.isRead, false),
+        eq(notificationsTable.isSeen, false),
       ),
     );
 
@@ -80,13 +82,15 @@ router.patch("/notifications/read-all", requireAuth, requireLicense, asyncHandle
 
   await db
     .update(notificationsTable)
-    .set({ isRead: true })
+    .set({ isRead: true, isSeen: true })
     .where(or(eq(notificationsTable.userId, userId), eq(notificationsTable.userId, "__admin__")));
 
   res.json({ success: true });
 }));
 
-/** PATCH /api/notifications/:id/read */
+/** PATCH /api/notifications/:id/read — marks a single notification as seen
+ *  (called when the user actually opens it in the app). This is what
+ *  decrements the unread badge count, one notification at a time. */
 router.patch("/notifications/:id/read", requireAuth, requireLicense, asyncHandler(async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -96,7 +100,7 @@ router.patch("/notifications/:id/read", requireAuth, requireLicense, asyncHandle
 
   await db
     .update(notificationsTable)
-    .set({ isRead: true })
+    .set({ isRead: true, isSeen: true })
     .where(and(eq(notificationsTable.id, id), or(eq(notificationsTable.userId, userId), eq(notificationsTable.userId, "__admin__"))));
 
   res.json({ success: true });

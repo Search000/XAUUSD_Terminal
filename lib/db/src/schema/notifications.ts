@@ -14,7 +14,11 @@ export const notificationsTable = pgTable("notifications", {
   type: text("type").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
-  isRead: boolean("is_read").notNull().default(false),
+  /** Backend/Telegram sync flag — set true immediately on creation (auto-read). */
+  isRead: boolean("is_read").notNull().default(true),
+  /** UI-only flag — stays false until the user actually opens this specific
+   *  notification in the app. Drives the unread badge count. */
+  isSeen: boolean("is_seen").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -16,6 +16,9 @@ type Notif = {
   title: string;
   body: string;
   isRead: boolean;
+  /** UI-only — false until the user actually opens this notification.
+   *  Drives the unread badge/dot, independent of isRead. */
+  isSeen: boolean;
   createdAt: string;
 };
 
@@ -93,8 +96,8 @@ function NotifModal({ notif, onClose, onMarkRead }: { notif: Notif; onClose: () 
   }, [onClose]);
 
   useEffect(() => {
-    if (!notif.isRead) onMarkRead(notif.id);
-  }, [notif.id, notif.isRead, onMarkRead]);
+    if (!notif.isSeen) onMarkRead(notif.id);
+  }, [notif.id, notif.isSeen, onMarkRead]);
 
   // Portal to document.body — bypasses any parent stacking context/transform
   return createPortal(
@@ -390,7 +393,7 @@ export function NotificationPanel() {
                         </div>
 
                         {items.map((notif) => {
-                          const isUnread = !notif.isRead;
+                          const isUnread = !notif.isSeen;
 
                           return (
                             <button

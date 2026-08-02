@@ -521,6 +521,8 @@ export interface AppNotification {
   title: string;
   body: string;
   isRead: boolean;
+  /** UI-only flag: false until the user opens this notification. Drives the unread badge count. */
+  isSeen: boolean;
   createdAt: string;
 }
 

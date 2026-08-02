@@ -1832,7 +1832,7 @@ components:
     # NOTIFICATIONS
     AppNotification:
       type: object
-      required: [id, userId, type, title, body, isRead, createdAt]
+      required: [id, userId, type, title, body, isRead, isSeen, createdAt]
       properties:
         id:
           type: integer
@@ -1847,6 +1847,10 @@ components:
           type: string
         isRead:
           type: boolean
+          description: "Backend/Telegram-sync flag, auto-true on creation."
+        isSeen:
+          type: boolean
+          description: "UI-only flag — false until the user opens this notification in-app. Drives the unread badge count."
         createdAt:
           type: string
 

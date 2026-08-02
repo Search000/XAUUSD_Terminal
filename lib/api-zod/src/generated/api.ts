@@ -632,6 +632,7 @@ export const AdminBroadcastNotificationResponse = zod.object({
   "title": zod.string(),
   "body": zod.string(),
   "isRead": zod.boolean(),
+  "isSeen": zod.boolean(),
   "createdAt": zod.string()
 })
 
@@ -660,6 +661,7 @@ export const AdminListNotificationsResponseItem = zod.object({
   "title": zod.string(),
   "body": zod.string(),
   "isRead": zod.boolean(),
+  "isSeen": zod.boolean(),
   "createdAt": zod.string()
 })
 export const AdminListNotificationsResponse = zod.array(AdminListNotificationsResponseItem)
@@ -879,6 +881,7 @@ export const ListNotificationsResponseItem = zod.object({
   "title": zod.string(),
   "body": zod.string(),
   "isRead": zod.boolean(),
+  "isSeen": zod.boolean(),
   "createdAt": zod.string()
 })
 export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem)

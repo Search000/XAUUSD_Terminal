@@ -14,5 +14,6 @@ export interface AppNotification {
   title: string;
   body: string;
   isRead: boolean;
+  isSeen: boolean;
   createdAt: string;
 }

@@ -220,7 +220,7 @@ router.post("/admin/notifications/broadcast", requireAuth, requireAdmin, asyncHa
 
   const [row] = await db
     .insert(notificationsTable)
-    .values({ userId: "__admin__", type: "admin", title, body, isRead: false })
+    .values({ userId: "__admin__", type: "admin", title, body })
     .returning();
 
   const { pushNotificationSSE } = await import("../lib/sseClients");
@@ -310,7 +310,7 @@ router.post("/admin/notifications/send-to-users", requireAuth, requireAdmin, asy
     userIds.map(async (userId) => {
       const [row] = await db
         .insert(notificationsTable)
-        .values({ userId, type: "admin", title, body, isRead: false })
+        .values({ userId, type: "admin", title, body })
         .returning();
       pushNotificationSSE(userId);
       return row;
@@ -322,7 +322,6 @@ router.post("/admin/notifications/send-to-users", requireAuth, requireAdmin, asy
     type: "admin_targeted",
     title,
     body,
-    isRead: false,
   });
 
   res.status(201).json({ sent: inserts.length });
