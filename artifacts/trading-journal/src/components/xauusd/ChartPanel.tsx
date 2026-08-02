@@ -49,6 +49,27 @@ function fmtPrice(p: number) {
   return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function fmtAxisPrice(p: number) {
+  return p.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+
+// TradingView-style "nice" tick step: picks a round increment (1-2-2.5-5-10 ×
+// power of ten) closest to the requested spacing, so axis labels land on
+// clean numbers (4,090.000 / 4,087.500 / 4,085.000 ...) instead of whatever
+// arbitrary value falls out of dividing the visible range into N equal parts.
+function niceTickStep(roughStep: number): number {
+  if (!isFinite(roughStep) || roughStep <= 0) return 1;
+  const pow10 = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const frac = roughStep / pow10;
+  let niceFrac: number;
+  if (frac <= 1) niceFrac = 1;
+  else if (frac <= 2) niceFrac = 2;
+  else if (frac <= 2.5) niceFrac = 2.5;
+  else if (frac <= 5) niceFrac = 5;
+  else niceFrac = 10;
+  return niceFrac * pow10;
+}
+
 function fmtTime(ts: number, tf: Timeframe) {
   const d = new Date(ts);
   if (tf === '1d') return format(d, 'MMM d');
@@ -181,10 +202,13 @@ function compute(
   const toX = (i: number) => PAD.left + i * step + step / 2;
 
   const Y_TICKS = 7;
-  const yTicks = Array.from({ length: Y_TICKS }, (_, i) => {
-    const price = minP + (pRange / (Y_TICKS - 1)) * i;
-    return { price, y: toY(price) };
-  });
+  const roughStep = pRange / (Y_TICKS - 1);
+  const tickStep = niceTickStep(roughStep);
+  const firstTick = Math.ceil(minP / tickStep) * tickStep;
+  const yTicks: { price: number; y: number }[] = [];
+  for (let price = firstTick; price <= maxP; price += tickStep) {
+    yTicks.push({ price, y: toY(price) });
+  }
 
   const maxXT = Math.min(8, visible.length);
   const xTickIndices = Array.from({ length: maxXT }, (_, i) =>
@@ -499,21 +523,29 @@ export function ChartPanel() {
     ctx.font = `11px monospace`;
     for (const { price, y } of yTicks) {
       ctx.fillStyle = TV.text;
-      ctx.fillText(fmtPrice(price), dims.w - PAD.right + 4, y);
+      ctx.fillText(fmtAxisPrice(price), dims.w - PAD.right + 4, y);
     }
 
-    // Live price label on right axis
+    // Live price label on right axis (TradingView-style: price + timestamp)
     if (livePrice !== null && livePrice >= minP && livePrice <= maxP) {
       const ly = toY(livePrice);
-      const label = fmtPrice(livePrice);
+      const label = fmtAxisPrice(livePrice);
+      const timeLabel = format(new Date(), 'HH:mm:ss');
       const boxColor = liveFlash === 'up' ? '#26a69a' : liveFlash === 'down' ? '#ef5350' : TV.liveLine;
+      const boxH = 26;
       ctx.fillStyle = boxColor;
-      ctx.fillRect(dims.w - PAD.right, ly - 9, PAD.right - 2, 18);
-      ctx.fillStyle = liveFlash ? '#fff' : '#0d0d14';
+      ctx.fillRect(dims.w - PAD.right, ly - boxH / 2, PAD.right - 2, boxH);
+      const textColor = liveFlash ? '#fff' : '#0d0d14';
       ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
+      ctx.fillStyle = textColor;
       ctx.font = 'bold 11px monospace';
-      ctx.fillText(label, dims.w - PAD.right + 4, ly);
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(label, dims.w - PAD.right + 4, ly + 1);
+      ctx.font = '9px monospace';
+      ctx.globalAlpha = 0.85;
+      ctx.textBaseline = 'top';
+      ctx.fillText(timeLabel, dims.w - PAD.right + 4, ly + 1);
+      ctx.globalAlpha = 1;
     }
 
     // X-axis time labels
@@ -577,7 +609,7 @@ export function ChartPanel() {
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.font = '10px monospace';
-        ctx.fillText(fmtPrice(crossPrice), dims.w - PAD.right + 4, y);
+        ctx.fillText(fmtAxisPrice(crossPrice), dims.w - PAD.right + 4, y);
       }
 
       const tlabel = fmtTime(c.time, timeframe);
