@@ -55,7 +55,7 @@ function fmtCompact(n: number, symbol: string) {
 }
 
 // ─── Bloomberg-style Ticker Tape ──────────────────────────────────────────────
-function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldTick: TickData | null; tape?: MarketTapeData }) {
+function BloombergTape({ metals, goldTick, tape, goldFlash }: { metals: MetalQuote[]; goldTick: TickData | null; tape?: MarketTapeData; goldFlash?: 'up' | 'down' | null }) {
   const LABEL_MAP: Record<string, string> = {
     XAU: 'GOLD',
     XAG: 'SILVER',
@@ -170,13 +170,17 @@ function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldT
             const up = item.change >= 0;
             const color = up ? '#26a69a' : '#ef5350';
             const arrow = up ? '▲' : '▼';
+            const isGold = item.sym === 'XAU/USD';
+            const pulseClass = isGold && goldFlash === 'up' ? 'price-pulse-up'
+              : isGold && goldFlash === 'down' ? 'price-pulse-down'
+              : '';
             return (
               <React.Fragment key={i}>
                 <span className="flex items-center gap-[7px] px-5 text-[11px] font-mono leading-none">
                   <span style={{ color: '#f0b90b', fontWeight: 700, letterSpacing: '0.06em' }}>
                     {item.label}
                   </span>
-                  <span style={{ color: '#e0e3eb', fontWeight: 600 }}>
+                  <span className={cn('rounded px-1', pulseClass)} style={{ color: '#e0e3eb', fontWeight: 600 }}>
                     {fmtCompact(item.price, item.label)}
                   </span>
                   <span style={{ color }} className="flex items-center gap-[3px]">
@@ -371,7 +375,7 @@ export function LiveTicker() {
   return (
     <div className="flex flex-col rounded-lg overflow-hidden border border-[#1a1a2e]" style={{ background: '#0d0d14' }}>
       {/* Bloomberg-style scrolling tape */}
-      <BloombergTape metals={metals as MetalQuote[]} goldTick={tick} tape={tape} />
+      <BloombergTape metals={metals as MetalQuote[]} goldTick={tick} tape={tape} goldFlash={flash} />
 
       {/* Main XAU/USD row */}
       <div
