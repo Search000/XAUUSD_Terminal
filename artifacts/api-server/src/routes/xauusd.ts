@@ -520,6 +520,13 @@ const NEWS_API_URL = "https://newsapi.org/v2/everything";
 const NEWS_QUERY =
   '(gold OR XAU/USD OR XAUUSD OR "precious metals") AND (Fed OR "Federal Reserve" OR dollar OR USD)';
 
+// The API query above matches if ANY of the OR'd terms appear anywhere in an
+// article's title/description/body, which lets clearly off-topic pieces
+// through (e.g. an earnings-call recap that just happens to mention "gains",
+// or a general markets roundup that says "dollar"). Require the headline
+// itself to actually reference gold/XAU as a second, stricter check.
+const GOLD_TITLE_RE = /\b(gold|xau\/?usd|bullion|precious\s*metals?)\b/i;
+
 async function fetchLiveGoldNews(): Promise<any[]> {
   const apiKey = process.env["NEWS_API_KEY"];
   if (!apiKey) {
@@ -528,7 +535,7 @@ async function fetchLiveGoldNews(): Promise<any[]> {
 
   const url =
     `${NEWS_API_URL}?q=${encodeURIComponent(NEWS_QUERY)}` +
-    `&language=en&sortBy=publishedAt&pageSize=20&apiKey=${apiKey}`;
+    `&language=en&sortBy=publishedAt&pageSize=30&apiKey=${apiKey}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10_000);
@@ -545,6 +552,7 @@ async function fetchLiveGoldNews(): Promise<any[]> {
 
   const seen = new Set<string>();
   const items: any[] = [];
+  const itemsUnfiltered: any[] = [];
   for (const a of articles) {
     const title: string = a?.title ?? "";
     const url_: string = a?.url ?? "";
@@ -554,7 +562,7 @@ async function fetchLiveGoldNews(): Promise<any[]> {
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
 
-    items.push({
+    const item = {
       id: url_ || `${title}-${a?.publishedAt ?? ""}`,
       title,
       source: a?.source?.name ?? "News",
@@ -562,14 +570,21 @@ async function fetchLiveGoldNews(): Promise<any[]> {
       publishedAt: a?.publishedAt
         ? new Date(a.publishedAt).toISOString()
         : new Date().toISOString(),
-    });
+    };
+    itemsUnfiltered.push(item);
+    if (GOLD_TITLE_RE.test(title)) items.push(item);
   }
 
-  items.sort(
+  // If the stricter headline filter leaves too few articles (e.g. a quiet
+  // news day), fall back to the unfiltered set rather than showing an
+  // almost-empty feed.
+  const result = items.length >= 3 ? items : itemsUnfiltered;
+
+  result.sort(
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
   );
 
-  return items.slice(0, 10);
+  return result.slice(0, 10);
 }
 
 // GET /api/xauusd/news
@@ -922,10 +937,16 @@ router.get("/xauusd/summary", async (req, res) => {
     const meta   = metaFromChart(data);
     const closes = closesFromChart(data);
     const price  = meta?.regularMarketPrice ?? 0;
-    const prev   = meta?.chartPreviousClose ?? price;
+    const last   = closes[closes.length - 1] ?? price;
+    // meta.chartPreviousClose from this endpoint has been observed to reflect
+    // a stale/start-of-range close rather than yesterday's close (it tracked
+    // almost exactly with the 1Y change instead of a real 1-day move).
+    // Derive "previous close" from the actual daily closes series instead —
+    // same approach already used for 1W/1M/1Y below — so it's self-consistent.
+    const prevFromCloses = closes.length >= 2 ? closes[closes.length - 2] : undefined;
+    const prev   = prevFromCloses ?? meta?.chartPreviousClose ?? price;
     const change = price - prev;
     const changePct = prev ? (change / prev) * 100 : 0;
-    const last   = closes[closes.length - 1] ?? price;
     const w1     = closes[closes.length - 6]  ?? last;
     const m1     = closes[closes.length - 22] ?? last;
     const y1     = closes[0] ?? last;

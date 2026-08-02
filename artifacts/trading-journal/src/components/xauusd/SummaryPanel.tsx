@@ -53,7 +53,7 @@ export function SummaryPanel() {
 
             <div>
               <h4 className="text-[10px] font-semibold text-muted-foreground uppercase mb-2 flex items-center justify-between">
-                <span>Dominant Trend</span>
+                <span>Dominant Trend <span className="normal-case font-normal opacity-60">(1W/1M)</span></span>
                 <TrendIcon trend={data.dominantTrend} />
               </h4>
               <div className="flex flex-wrap gap-2">
