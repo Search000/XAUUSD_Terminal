@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { X, Check, CheckCheck } from "lucide-react";
 import {
@@ -341,87 +341,106 @@ export function NotificationPanel() {
           )}
         </button>
 
-        {/* ── Dropdown Panel — portaled to document.body so it isn't
-             clipped/scrolled by the sidebar's own overflow-y-auto ──────── */}
         {open && anchorRect && createPortal(
-          <div
-            ref={dropdownRef}
-            style={{
-              position: "fixed",
-              top: anchorRect.bottom + 8,
-              left: Math.max(8, Math.min(anchorRect.right - 320, window.innerWidth - 320 - 8)),
-              width: 320,
-              zIndex: 9999,
-            }}
-            className="bg-[#1a1b1f] border border-[#2a2b30] rounded-xl shadow-2xl overflow-hidden"
-          >
+          (() => {
+            const PANEL_HEIGHT_ESTIMATE = 460; // header + max-h-[420px] list, roughly
+            const spaceBelow = window.innerHeight - anchorRect.bottom;
+            const spaceAbove = anchorRect.top;
+            const openUpward = spaceBelow < PANEL_HEIGHT_ESTIMATE && spaceAbove > spaceBelow;
 
-            {/* header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2b30]">
-              <span className="font-semibold text-sm text-slate-100">Notifications</span>
-              <button
-                type="button"
-                onClick={handleMarkAll}
-                disabled={markAll.isPending || unreadCount === 0}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-slate-300 transition-colors disabled:opacity-40"
+            const style: CSSProperties = openUpward
+              ? {
+                  position: "fixed",
+                  bottom: window.innerHeight - anchorRect.top + 8,
+                  left: Math.max(8, Math.min(anchorRect.right - 320, window.innerWidth - 320 - 8)),
+                  width: 320,
+                  maxHeight: Math.max(200, spaceAbove - 16),
+                  zIndex: 9999,
+                }
+              : {
+                  position: "fixed",
+                  top: anchorRect.bottom + 8,
+                  left: Math.max(8, Math.min(anchorRect.right - 320, window.innerWidth - 320 - 8)),
+                  width: 320,
+                  maxHeight: Math.max(200, spaceBelow - 16),
+                  zIndex: 9999,
+                };
+
+            return (
+              <div
+                ref={dropdownRef}
+                style={style}
+                className="bg-[#1a1b1f] border border-[#2a2b30] rounded-xl shadow-2xl overflow-hidden flex flex-col"
               >
-                <CheckCheck className="w-3.5 h-3.5" />
-                Mark as read
-              </button>
-            </div>
 
-            {/* list */}
-            <div className="max-h-[420px] overflow-y-auto">
-              {notifications.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
-                  <BellIcon hasUnread={false} />
-                  <span className="text-xs">No notifications yet</span>
+                {/* header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2b30] shrink-0">
+                  <span className="font-semibold text-sm text-slate-100">Notifications</span>
+                  <button
+                    type="button"
+                    onClick={handleMarkAll}
+                    disabled={markAll.isPending || unreadCount === 0}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-slate-300 transition-colors disabled:opacity-40"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    Mark as read
+                  </button>
                 </div>
-              ) : (
-                grouped.map(({ label, items }) => (
-                  <div key={label}>
-                    {/* month divider */}
-                    <div className="px-4 pt-3 pb-1">
-                      <span className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
-                        {label}
-                      </span>
+
+                {/* list */}
+                <div className="overflow-y-auto flex-1">
+                  {notifications.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
+                      <BellIcon hasUnread={false} />
+                      <span className="text-xs">No notifications yet</span>
                     </div>
+                  ) : (
+                    grouped.map(({ label, items }) => (
+                      <div key={label}>
+                        {/* month divider */}
+                        <div className="px-4 pt-3 pb-1">
+                          <span className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-wider">
+                            {label}
+                          </span>
+                        </div>
 
-                    {items.map((notif) => {
-                      const isUnread = !notif.isRead;
+                        {items.map((notif) => {
+                          const isUnread = !notif.isRead;
 
-                      return (
-                        <button
-                          key={notif.id}
-                          type="button"
-                          onClick={() => openModal(notif as Notif)}
-                          className={`w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-white/[0.04] transition-colors border-b border-[#2a2b30]/50 last:border-0 ${isUnread ? "bg-white/[0.02]" : ""}`}
-                        >
-                          {/* unread dot */}
-                          <span className={`mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full ${isUnread ? "bg-amber-400" : "bg-transparent"}`} />
+                          return (
+                            <button
+                              key={notif.id}
+                              type="button"
+                              onClick={() => openModal(notif as Notif)}
+                              className={`w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-white/[0.04] transition-colors border-b border-[#2a2b30]/50 last:border-0 ${isUnread ? "bg-white/[0.02]" : ""}`}
+                            >
+                              {/* unread dot */}
+                              <span className={`mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full ${isUnread ? "bg-amber-400" : "bg-transparent"}`} />
 
-                          <div className="flex-1 min-w-0">
-                            {/* title */}
-                            <p className={`text-[13px] leading-snug mb-1 ${isUnread ? "font-semibold text-slate-100" : "font-medium text-slate-300"}`}>
-                              {notif.title}
-                            </p>
-                            {/* body preview — 2 lines max */}
-                            <p className="text-[12px] text-muted-foreground leading-relaxed line-clamp-2 mb-1.5">
-                              {notif.body}
-                            </p>
-                            {/* date */}
-                            <p className="text-[11px] text-muted-foreground/55">
-                              {formatListDate(notif.createdAt)}
-                            </p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>,
+                              <div className="flex-1 min-w-0">
+                                {/* title */}
+                                <p className={`text-[13px] leading-snug mb-1 ${isUnread ? "font-semibold text-slate-100" : "font-medium text-slate-300"}`}>
+                                  {notif.title}
+                                </p>
+                                {/* body preview — 2 lines max */}
+                                <p className="text-[12px] text-muted-foreground leading-relaxed line-clamp-2 mb-1.5">
+                                  {notif.body}
+                                </p>
+                                {/* date */}
+                                <p className="text-[11px] text-muted-foreground/55">
+                                  {formatListDate(notif.createdAt)}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })(),
           document.body,
         )}
       </div>
