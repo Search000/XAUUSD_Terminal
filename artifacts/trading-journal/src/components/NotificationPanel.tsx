@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { X, Check, CheckCheck } from "lucide-react";
+import { X, Check } from "lucide-react";
 import {
   useListNotifications, getListNotificationsQueryKey,
-  useMarkAllNotificationsRead, useMarkNotificationRead,
+  useMarkNotificationRead,
   getGetNotificationsUnreadCountQueryKey, useGetNotificationsUnreadCount,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -172,7 +172,6 @@ export function NotificationPanel() {
     },
   });
 
-  const markAll = useMarkAllNotificationsRead();
   const markOne = useMarkNotificationRead();
 
   const refresh = useCallback(() => {
@@ -292,11 +291,6 @@ export function NotificationPanel() {
     };
   }, [open]);
 
-  async function handleMarkAll() {
-    await markAll.mutateAsync(undefined as unknown as void);
-    refresh();
-  }
-
   async function handleMarkOne(id: number) {
     await markOne.mutateAsync({ id });
     refresh();
@@ -374,17 +368,8 @@ export function NotificationPanel() {
               >
 
                 {/* header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2b30] shrink-0">
+                <div className="flex items-center px-4 py-3 border-b border-[#2a2b30] shrink-0">
                   <span className="font-semibold text-sm text-slate-100">Notifications</span>
-                  <button
-                    type="button"
-                    onClick={handleMarkAll}
-                    disabled={markAll.isPending || unreadCount === 0}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-slate-300 transition-colors disabled:opacity-40"
-                  >
-                    <CheckCheck className="w-3.5 h-3.5" />
-                    Mark as read
-                  </button>
                 </div>
 
                 {/* list */}
