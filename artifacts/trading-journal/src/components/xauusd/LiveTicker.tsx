@@ -249,6 +249,7 @@ function useZonedClock(offsetMinutes: number) {
 export function LiveTicker() {
   const { price: spotPrice, changePct: spotChangePct, timestamp: spotTimestamp, connected: liveConnected, marketOpen: liveMarketOpen } = useLivePrice();
   const [flash, setFlash] = useState<'up' | 'down' | null>(null);
+  const [flashSeq, setFlashSeq] = useState(0);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevPriceRef = useRef<number | null>(null);
   const utcTime = useUtcClock();
@@ -349,6 +350,7 @@ export function LiveTicker() {
     if (dir) {
       if (flashTimer.current) clearTimeout(flashTimer.current);
       setFlash(dir);
+      setFlashSeq((s: number) => s + 1);
       flashTimer.current = setTimeout(() => setFlash(null), 600);
     }
     prevPriceRef.current = tick.price;
@@ -422,7 +424,12 @@ export function LiveTicker() {
               {tick ? (
                 <div className="flex items-baseline gap-3">
                   <span
-                    className="text-3xl sm:text-4xl font-mono font-bold tracking-tight transition-colors duration-150"
+                    key={flash ? `${flash}-${flashSeq}` : 'idle'}
+                    className={cn(
+                      'text-3xl sm:text-4xl font-mono font-bold tracking-tight transition-colors duration-150 rounded px-1',
+                      flash === 'up' && 'price-pulse-up',
+                      flash === 'down' && 'price-pulse-down'
+                    )}
                     style={{ color: priceColor }}
                   >
                     {fmt(tick.price)}
@@ -541,6 +548,21 @@ export function LiveTicker() {
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes pricePulseUp {
+          0%   { box-shadow: 0 0 0 0 rgba(38,166,154,0.55); background-color: rgba(38,166,154,0.16); }
+          70%  { box-shadow: 0 0 0 10px rgba(38,166,154,0); background-color: rgba(38,166,154,0); }
+          100% { box-shadow: 0 0 0 0 rgba(38,166,154,0); background-color: rgba(38,166,154,0); }
+        }
+        @keyframes pricePulseDown {
+          0%   { box-shadow: 0 0 0 0 rgba(239,83,80,0.55); background-color: rgba(239,83,80,0.16); }
+          70%  { box-shadow: 0 0 0 10px rgba(239,83,80,0); background-color: rgba(239,83,80,0); }
+          100% { box-shadow: 0 0 0 0 rgba(239,83,80,0); background-color: rgba(239,83,80,0); }
+        }
+        .price-pulse-up { animation: pricePulseUp 600ms ease-out; }
+        .price-pulse-down { animation: pricePulseDown 600ms ease-out; }
+      `}</style>
     </div>
   );
 }
