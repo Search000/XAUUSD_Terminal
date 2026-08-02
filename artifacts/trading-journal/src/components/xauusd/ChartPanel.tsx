@@ -62,10 +62,14 @@ function niceTickStep(roughStep: number): number {
   const pow10 = Math.pow(10, Math.floor(Math.log10(roughStep)));
   const frac = roughStep / pow10;
   let niceFrac: number;
-  if (frac <= 1) niceFrac = 1;
-  else if (frac <= 2) niceFrac = 2;
-  else if (frac <= 2.5) niceFrac = 2.5;
-  else if (frac <= 5) niceFrac = 5;
+  // Geometric-mean cutoffs between candidates (1, 2, 2.5, 5, 10) so a value
+  // like 5.5 still rounds DOWN to 5 instead of jumping all the way to 10 —
+  // that jump was the bug: it collapsed a 7-tick axis down to 2-3 ticks
+  // with a huge, near-empty gap between labels.
+  if (frac < 1.41) niceFrac = 1;
+  else if (frac < 2.24) niceFrac = 2;
+  else if (frac < 3.54) niceFrac = 2.5;
+  else if (frac < 7.07) niceFrac = 5;
   else niceFrac = 10;
   return niceFrac * pow10;
 }
@@ -526,26 +530,18 @@ export function ChartPanel() {
       ctx.fillText(fmtAxisPrice(price), dims.w - PAD.right + 4, y);
     }
 
-    // Live price label on right axis (TradingView-style: price + timestamp)
+    // Live price label on right axis
     if (livePrice !== null && livePrice >= minP && livePrice <= maxP) {
       const ly = toY(livePrice);
       const label = fmtAxisPrice(livePrice);
-      const timeLabel = format(new Date(), 'HH:mm:ss');
       const boxColor = liveFlash === 'up' ? '#26a69a' : liveFlash === 'down' ? '#ef5350' : TV.liveLine;
-      const boxH = 26;
       ctx.fillStyle = boxColor;
-      ctx.fillRect(dims.w - PAD.right, ly - boxH / 2, PAD.right - 2, boxH);
-      const textColor = liveFlash ? '#fff' : '#0d0d14';
+      ctx.fillRect(dims.w - PAD.right, ly - 9, PAD.right - 2, 18);
+      ctx.fillStyle = liveFlash ? '#fff' : '#0d0d14';
       ctx.textAlign = 'left';
-      ctx.fillStyle = textColor;
+      ctx.textBaseline = 'middle';
       ctx.font = 'bold 11px monospace';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(label, dims.w - PAD.right + 4, ly + 1);
-      ctx.font = '9px monospace';
-      ctx.globalAlpha = 0.85;
-      ctx.textBaseline = 'top';
-      ctx.fillText(timeLabel, dims.w - PAD.right + 4, ly + 1);
-      ctx.globalAlpha = 1;
+      ctx.fillText(label, dims.w - PAD.right + 4, ly);
     }
 
     // X-axis time labels
