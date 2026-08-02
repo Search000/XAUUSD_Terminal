@@ -517,8 +517,22 @@ const NEWS_TTL = 5 * 60 * 1000;
 
 // NewsAPI.org "everything" endpoint — free/dev tier is enough for a 5-min-cached feed.
 const NEWS_API_URL = "https://newsapi.org/v2/everything";
+// The old query only required a USD/Fed term to match, so any article that
+// mentioned "gold" or "dollar" *anywhere* in its body (travel articles about
+// "golden hour", retirement pieces, unrelated market roundups, etc.) could
+// slip through even though it had nothing to do with the gold market.
+// qInTitle restricts matching to the headline itself for the gold-specific
+// term, and the AND clause keeps the USD/Fed context requirement.
+const NEWS_QUERY_IN_TITLE = '(gold OR XAU/USD OR XAUUSD OR bullion OR "precious metals")';
 const NEWS_QUERY =
-  '(gold OR XAU/USD OR XAUUSD OR "precious metals") AND (Fed OR "Federal Reserve" OR dollar OR USD)';
+  '(Fed OR "Federal Reserve" OR dollar OR USD OR inflation OR rate OR tariff OR geopolit* OR safe-haven)';
+
+// Belt-and-suspenders relevance check: even with qInTitle scoping the primary
+// search, keep only articles whose headline actually contains a gold/precious
+// -metals term. This drops off-topic pieces (travel, unrelated equities,
+// generic personal-finance listicles) that NewsAPI's OR-based matching can
+// still let through.
+const GOLD_TITLE_RE = /\b(gold|xau\/?usd|bullion|precious\s*metals?)\b/i;
 
 async function fetchLiveGoldNews(): Promise<any[]> {
   const apiKey = process.env["NEWS_API_KEY"];
@@ -528,7 +542,8 @@ async function fetchLiveGoldNews(): Promise<any[]> {
 
   const url =
     `${NEWS_API_URL}?q=${encodeURIComponent(NEWS_QUERY)}` +
-    `&language=en&sortBy=publishedAt&pageSize=20&apiKey=${apiKey}`;
+    `&qInTitle=${encodeURIComponent(NEWS_QUERY_IN_TITLE)}` +
+    `&language=en&sortBy=publishedAt&pageSize=30&apiKey=${apiKey}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10_000);
@@ -549,6 +564,7 @@ async function fetchLiveGoldNews(): Promise<any[]> {
     const title: string = a?.title ?? "";
     const url_: string = a?.url ?? "";
     if (!title || !url_) continue;
+    if (!GOLD_TITLE_RE.test(title)) continue;
 
     const dedupeKey = (title || url_).trim().toLowerCase();
     if (seen.has(dedupeKey)) continue;
