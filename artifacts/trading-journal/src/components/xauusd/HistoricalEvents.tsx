@@ -300,13 +300,14 @@ export function HistoricalEvents() {
       </CardHeader>
 
       <CardContent className="p-0 flex-1 flex flex-col min-h-0">
-        {/* Chart — prevent wheel from scrolling the page */}
+        {/* Chart — prevent wheel from scrolling the page (desktop only;
+            touch scroll must pass through so mobile users can still scroll
+            the page when their finger starts inside this chart). */}
         <div
           ref={chartWrapperRef}
           className="px-2 pt-1"
           style={{ height: 260 }}
           onWheel={e => e.stopPropagation()}
-          onTouchMove={e => e.stopPropagation()}
         >
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
