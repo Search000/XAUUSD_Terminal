@@ -26,11 +26,6 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Manual price correction applied to all displayed prices in this panel,
-// consistent with the offset used across Order Flow, Fibonacci, Volume
-// Profile, and Technicals panels.
-const MANUAL_PRICE_OFFSET = -61.83;
-
 const STRUCTURE_META = {
   contango: {
     label: 'CONTANGO',
@@ -88,10 +83,10 @@ export function FuturesCurvePanel() {
   if (offsetRef.current === null && data && typeof livePrice === 'number') {
     offsetRef.current = livePrice - data.spotPrice;
   }
-  const offset = (offsetRef.current ?? 0) + MANUAL_PRICE_OFFSET;
+  const offset = offsetRef.current ?? 0;
   const fc: FcData | null = data ? {
     ...data,
-    spotPrice: typeof livePrice === 'number' ? livePrice + MANUAL_PRICE_OFFSET : data.spotPrice + offset,
+    spotPrice: typeof livePrice === 'number' ? livePrice : data.spotPrice + offset,
     rows: data.rows.map(r => ({ ...r, price: r.price + offset })),
   } : null;
 

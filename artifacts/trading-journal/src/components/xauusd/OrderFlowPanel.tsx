@@ -34,9 +34,6 @@ interface Computed {
   price: number;
 }
 
-// Manual price correction applied to all displayed prices in this panel.
-const MANUAL_PRICE_OFFSET = -61.83;
-
 function computeFlow(candles: Candle[]): Computed {
   let cumDelta = 0;
   const bars: FlowBar[] = candles.map(c => {
@@ -257,7 +254,7 @@ export function OrderFlowPanel() {
                 { label: 'Buy Vol',  value: fmtVol(flow.totalBuyVol),  color: '#26a69a' },
                 { label: 'Sell Vol', value: fmtVol(flow.totalSellVol), color: '#ef5350' },
                 { label: 'Cum Δ',   value: (flow.cumDelta >= 0 ? '+' : '') + fmtVol(flow.cumDelta), color: deltaColor },
-                { label: 'Price',   value: ((typeof livePrice === 'number' ? livePrice : flow.price) + MANUAL_PRICE_OFFSET).toFixed(2), color: '#d1d4dc' },
+                { label: 'Price',   value: (typeof livePrice === 'number' ? livePrice : flow.price).toFixed(2), color: '#d1d4dc' },
               ].map(s => (
                 <div key={s.label} className="flex flex-col items-center rounded-md py-2"
                   style={{ background: '#0a0a12', border: '1px solid #1a1a2e' }}>

@@ -29,9 +29,6 @@ interface VpData {
   updatedAt: number;
 }
 
-// Manual price correction applied to all displayed prices in this panel.
-const MANUAL_PRICE_OFFSET = -61.83;
-
 function fmt(n: number) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
@@ -70,10 +67,10 @@ export function VolumeProfilePanel() {
   if (offsetRef.current === null && data && typeof livePrice === 'number') {
     offsetRef.current = livePrice - data.currentPrice;
   }
-  const offset = (offsetRef.current ?? 0) + MANUAL_PRICE_OFFSET;
+  const offset = offsetRef.current ?? 0;
   const vp: VpData | null = data ? {
     ...data,
-    currentPrice: typeof livePrice === 'number' ? livePrice + MANUAL_PRICE_OFFSET : data.currentPrice + offset,
+    currentPrice: typeof livePrice === 'number' ? livePrice : data.currentPrice + offset,
     poc: data.poc + offset,
     pocTo: data.pocTo + offset,
     vah: data.vah + offset,

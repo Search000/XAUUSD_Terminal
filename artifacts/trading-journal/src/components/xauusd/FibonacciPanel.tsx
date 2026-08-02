@@ -45,9 +45,6 @@ const LEVEL_COLORS: Record<string, string> = {
   ext1618: 'rgba(255,255,255,0.4)',
 };
 
-// Manual price correction applied to all displayed prices in this panel.
-const MANUAL_PRICE_OFFSET = -61.83;
-
 const TFS: Tf[] = ['1h', '4h', '1d'];
 const LOOK_BACK: Record<Tf, number> = { '1h': 60, '4h': 40, '1d': 30 };
 
@@ -104,9 +101,9 @@ export function FibonacciPanel() {
   if (offsetRef.current === null && typeof spotPrice === 'number' && refClose) {
     offsetRef.current = spotPrice - refClose;
   }
-  const offset = (offsetRef.current ?? 0) + MANUAL_PRICE_OFFSET;
+  const offset = offsetRef.current ?? 0;
   const livePrice = typeof spotPrice === 'number'
-    ? spotPrice + MANUAL_PRICE_OFFSET
+    ? spotPrice
     : (refClose ? refClose + offset : 0);
 
   const lookback = LOOK_BACK[tf];
