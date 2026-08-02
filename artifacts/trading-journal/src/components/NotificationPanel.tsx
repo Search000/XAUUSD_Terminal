@@ -151,7 +151,9 @@ function NotifModal({ notif, onClose, onMarkRead }: { notif: Notif; onClose: () 
 export function NotificationPanel() {
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState<Notif | null>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const qc = useQueryClient();
   const { getToken, isSignedIn } = useAuth();
 
@@ -255,15 +257,39 @@ export function NotificationPanel() {
 
   const unreadCount = countData?.count ?? 0;
 
-  // Close panel on outside click
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close panel on outside click — must check both the bell button AND the
+  // portaled dropdown content (which lives outside panelRef's DOM subtree
+  // now that it's rendered via createPortal to document.body).
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        panelRef.current && !panelRef.current.contains(target) &&
+        dropdownRef.current && !dropdownRef.current.contains(target)
+      ) {
         setOpen(false);
       }
     }
     if (open) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  // Keep the dropdown's position in sync with the bell button (viewport
+  // coordinates, since it's portaled to document.body).
+  useEffect(() => {
+    if (!open) return;
+    function updateRect() {
+      if (buttonRef.current) setAnchorRect(buttonRef.current.getBoundingClientRect());
+    }
+    updateRect();
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("scroll", updateRect, true);
+    return () => {
+      window.removeEventListener("resize", updateRect);
+      window.removeEventListener("scroll", updateRect, true);
+    };
   }, [open]);
 
   async function handleMarkAll() {
@@ -295,6 +321,7 @@ export function NotificationPanel() {
       <div className="relative" ref={panelRef}>
         {/* ── Bell Button ──────────────────────────────────── */}
         <button
+          ref={buttonRef}
           type="button"
           onClick={() => setOpen(v => !v)}
           className={`relative flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-150
@@ -314,9 +341,20 @@ export function NotificationPanel() {
           )}
         </button>
 
-        {/* ── Dropdown Panel ───────────────────────────────── */}
-        {open && (
-          <div className="absolute right-0 top-full mt-2 w-80 bg-[#1a1b1f] border border-[#2a2b30] rounded-xl shadow-2xl z-50 overflow-hidden">
+        {/* ── Dropdown Panel — portaled to document.body so it isn't
+             clipped/scrolled by the sidebar's own overflow-y-auto ──────── */}
+        {open && anchorRect && createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: anchorRect.bottom + 8,
+              left: Math.max(8, Math.min(anchorRect.right - 320, window.innerWidth - 320 - 8)),
+              width: 320,
+              zIndex: 9999,
+            }}
+            className="bg-[#1a1b1f] border border-[#2a2b30] rounded-xl shadow-2xl overflow-hidden"
+          >
 
             {/* header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2b30]">
@@ -383,7 +421,8 @@ export function NotificationPanel() {
                 ))
               )}
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
 
