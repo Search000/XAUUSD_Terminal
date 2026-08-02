@@ -184,21 +184,20 @@ export function TechnicalsPanel() {
   const sig = data_.signal ?? 'neutral';
   const sc = sigConfig(sig);
 
-  // Level rows — labels assigned dynamically based on price vs current price
+  // Level rows — r1/r2 are ALWAYS resistance, s1/s2 are ALWAYS support (2 of
+  // each, plus current price and pivot). Previously these were re-labeled by
+  // comparing each level to the current price, which could flip a genuine
+  // resistance level to "Support" once the live-price rebase offset nudged
+  // it below price — collapsing the panel to 1 resistance / 3 support rows
+  // instead of the fixed 2/2 layout.
   type Row = { price: number; fullLabel: string; type: 'resistance' | 'support' | 'pivot' | 'last' };
-  const cp = data_.currentPrice ?? 0;
-  const dynamicLabel = (price: number): { fullLabel: string; type: Row['type'] } => {
-    if (price > cp) return { fullLabel: 'Resistance', type: 'resistance' };
-    if (price < cp) return { fullLabel: 'Support',    type: 'support'    };
-    return               { fullLabel: 'Resistance',   type: 'resistance' };
-  };
   const rows: Row[] = [
-    data_.r2           && { price: data_.r2,           ...dynamicLabel(data_.r2)                                        },
-    data_.r1           && { price: data_.r1,           ...dynamicLabel(data_.r1)                                        },
-    data_.currentPrice && { price: data_.currentPrice, fullLabel: 'Current Price', type: 'last'  as const              },
-    data_.pivot        && { price: data_.pivot,        fullLabel: 'Pivot Point',   type: 'pivot' as const              },
-    data_.s1           && { price: data_.s1,           ...dynamicLabel(data_.s1)                                        },
-    data_.s2           && { price: data_.s2,           ...dynamicLabel(data_.s2)                                        },
+    data_.r2           && { price: data_.r2,           fullLabel: 'Resistance',    type: 'resistance' as const },
+    data_.r1           && { price: data_.r1,           fullLabel: 'Resistance',    type: 'resistance' as const },
+    data_.currentPrice && { price: data_.currentPrice, fullLabel: 'Current Price', type: 'last'        as const },
+    data_.pivot        && { price: data_.pivot,        fullLabel: 'Pivot Point',   type: 'pivot'       as const },
+    data_.s1           && { price: data_.s1,           fullLabel: 'Support',       type: 'support'     as const },
+    data_.s2           && { price: data_.s2,           fullLabel: 'Support',       type: 'support'     as const },
   ]
     .filter(Boolean)
     .sort((a: any, b: any) => b.price - a.price) as Row[];
