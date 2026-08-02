@@ -1962,6 +1962,53 @@ async function fetchCotNetLongs(): Promise<{ netLongs: number; asOf: string } | 
   }
 }
 
+// ─── COT Positioning History (6 months, weekly) ───────────────────────────────
+// Same CFTC Socrata source as the single-snapshot fetch above, but pulling the
+// last ~26 weekly reports so the frontend can chart how large speculators'
+// net-long positioning has trended, not just the latest number.
+let cotHistoryCache: any = null;
+let cotHistoryCacheAt = 0;
+const COT_HISTORY_TTL = 6 * 60 * 60 * 1000; // 6h — CFTC only publishes weekly anyway
+
+const CFTC_COT_HISTORY_URL =
+  "https://publicreporting.cftc.gov/resource/6dca-aqww.json" +
+  "?$where=" + encodeURIComponent("market_and_exchange_names='GOLD - COMMODITY EXCHANGE INC.'") +
+  "&$order=report_date_as_yyyy_mm_dd DESC&$limit=26";
+
+router.get("/xauusd/cot-history", async (_req, res) => {
+  const now = Date.now();
+  if (cotHistoryCache && now - cotHistoryCacheAt < COT_HISTORY_TTL) { res.json(cotHistoryCache); return; }
+  try {
+    const cftcRes = await fetch(CFTC_COT_HISTORY_URL, { headers: { Accept: "application/json" } });
+    if (!cftcRes.ok) { res.status(502).json({ error: "CFTC data unavailable" }); return; }
+    const rows: any[] = await cftcRes.json();
+
+    const points = rows
+      .map(row => {
+        const long  = parseFloat(row.noncomm_positions_long_all);
+        const short = parseFloat(row.noncomm_positions_short_all);
+        if (!Number.isFinite(long) || !Number.isFinite(short)) return null;
+        return {
+          date: row.report_date_as_yyyy_mm_dd,
+          netLongs: Math.round(long - short),
+          longs: Math.round(long),
+          shorts: Math.round(short),
+        };
+      })
+      .filter((p): p is { date: string; netLongs: number; longs: number; shorts: number } => p !== null)
+      .reverse(); // oldest → newest for charting left-to-right
+
+    if (points.length === 0) { res.status(502).json({ error: "No COT data returned" }); return; }
+
+    cotHistoryCache = { points, updatedAt: now };
+    cotHistoryCacheAt = now;
+    res.json(cotHistoryCache);
+  } catch (err) {
+    logger.error({ err }, "cot-history error");
+    res.status(500).json({ error: "Failed to fetch COT history" });
+  }
+});
+
 async function fetchFedFundsRate(): Promise<number | null> {
   try {
     const res = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS", {

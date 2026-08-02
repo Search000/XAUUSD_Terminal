@@ -20,6 +20,7 @@ import { MiningStocks } from '@/components/xauusd/MiningStocks';
 import { HistoricalEvents } from '@/components/xauusd/HistoricalEvents';
 import { VolumeProfilePanel } from '@/components/xauusd/VolumeProfilePanel';
 import { FuturesCurvePanel } from '@/components/xauusd/FuturesCurvePanel';
+import { CotHistoryPanel } from '@/components/xauusd/CotHistoryPanel';
 
 /**
  * Panels are mounted in 4 progressive batches to avoid firing 20+ API
@@ -102,6 +103,8 @@ export function XauusdMonitorPage() {
                   <FedRateTracker />
                 </div>
               )}
+
+              {batch >= 4 && <CotHistoryPanel />}
 
               {batch >= 4 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
