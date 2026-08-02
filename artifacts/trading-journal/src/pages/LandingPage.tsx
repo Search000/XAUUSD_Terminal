@@ -1,7 +1,5 @@
-import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ActiveOfferPopup } from "@/components/ActiveOfferPopup";
-import { API_BASE } from "@/lib/api";
 
 const LANDING_CSS = `
   .lp-root{
@@ -122,66 +120,7 @@ const LANDING_CSS = `
 const LICENSE_PRICE = "$49";
 const LICENSE_DURATION = "30-day";
 
-interface TapeData {
-  gold: { price: number; changePct: number } | null;
-  dxy: { price: number; changePct: number | null } | null;
-  yield10y: { price: number; change: number | null } | null;
-  cot: { netLongs: number } | null;
-  fearGreed: { score: number; label: string } | null;
-  session: string | null;
-  fedFunds: number | null;
-  atr14: number | null;
-}
-
-function useLandingTapeData(): TapeData {
-  const [data, setData] = useState<TapeData>({
-    gold: null, dxy: null, yield10y: null, cot: null, fearGreed: null, session: null, fedFunds: null, atr14: null,
-  });
-
-  useEffect(() => {
-    let mounted = true;
-    async function load() {
-      try {
-        const [priceRes, tapeRes] = await Promise.all([
-          fetch(`${API_BASE}/api/xauusd/price`).then(r => r.ok ? r.json() : null).catch(() => null),
-          fetch(`${API_BASE}/api/xauusd/market-tape`).then(r => r.ok ? r.json() : null).catch(() => null),
-        ]);
-        if (!mounted) return;
-        setData({
-          gold: priceRes ? { price: priceRes.price, changePct: priceRes.changePct } : null,
-          dxy: tapeRes?.dxy ?? null,
-          yield10y: tapeRes?.yield10y ?? null,
-          cot: tapeRes?.cot ?? null,
-          fearGreed: tapeRes?.fearGreed ?? null,
-          session: tapeRes?.session ?? null,
-          fedFunds: tapeRes?.fedFunds ?? null,
-          atr14: tapeRes?.atr14 ?? null,
-        });
-      } catch {
-        // keep previous/empty state — ticker line below just omits missing pieces
-      }
-    }
-    load();
-    const id = setInterval(load, 5 * 60 * 1000);
-    return () => { mounted = false; clearInterval(id); };
-  }, []);
-
-  return data;
-}
-
 export default function LandingPage() {
-  const tape = useLandingTapeData();
-
-  const tapeSpans: { label: string; value: string; down?: boolean }[] = [];
-  if (tape.gold) tapeSpans.push({ label: 'XAU/USD', value: `${tape.gold.price.toFixed(2)} ${tape.gold.changePct >= 0 ? '▲' : '▼'}${Math.abs(tape.gold.changePct).toFixed(2)}%`, down: tape.gold.changePct < 0 });
-  if (tape.dxy) tapeSpans.push({ label: 'DXY', value: `${tape.dxy.price.toFixed(2)} ${(tape.dxy.changePct ?? 0) >= 0 ? '▲' : '▼'}${Math.abs(tape.dxy.changePct ?? 0).toFixed(2)}%`, down: (tape.dxy.changePct ?? 0) < 0 });
-  if (tape.yield10y) tapeSpans.push({ label: '10Y YIELD', value: `${tape.yield10y.price.toFixed(2)}% ${(tape.yield10y.change ?? 0) >= 0 ? '▲' : '▼'}${Math.abs(tape.yield10y.change ?? 0).toFixed(2)}`, down: (tape.yield10y.change ?? 0) < 0 });
-  if (tape.cot) tapeSpans.push({ label: 'COT NET LONGS', value: `${tape.cot.netLongs >= 0 ? '+' : ''}${Math.round(tape.cot.netLongs / 1000)}K` });
-  if (tape.fearGreed) tapeSpans.push({ label: 'FEAR/GREED', value: `${tape.fearGreed.score} ${tape.fearGreed.label.toUpperCase()}` });
-  if (tape.session) tapeSpans.push({ label: 'SESSION', value: tape.session });
-  if (tape.fedFunds != null) tapeSpans.push({ label: 'FED FUNDS', value: `${tape.fedFunds.toFixed(2)}%` });
-  if (tape.atr14 != null) tapeSpans.push({ label: 'ATR(14)', value: tape.atr14.toFixed(1) });
-
   return (
     <div className="lp-root">
       <style>{LANDING_CSS}</style>
@@ -189,11 +128,16 @@ export default function LandingPage() {
       {/* Ticker */}
       <div className="lp-ticker">
         <div className="lp-ticker-inner">
-          {tapeSpans.length > 0 && Array.from({ length: 2 }).map((_, i) => (
+          {Array.from({ length: 2 }).map((_, i) => (
             <span key={i} style={{ display: "contents" }}>
-              {tapeSpans.map((s, j) => (
-                <span key={j}>{s.label} <b className={s.down ? "d" : undefined}>{s.value}</b></span>
-              ))}
+              <span>XAU/USD <b>2,412.85 ▲0.42%</b></span>
+              <span>DXY <b className="d">104.21 ▼0.18%</b></span>
+              <span>10Y YIELD <b className="d">4.28% ▼0.02</b></span>
+              <span>COT NET LONGS <b>+218K</b></span>
+              <span>FEAR/GREED <b>62 GREED</b></span>
+              <span>SESSION <b>LONDON OPEN</b></span>
+              <span>FED FUNDS <b>5.25%</b></span>
+              <span>ATR(14) <b>14.6</b></span>
             </span>
           ))}
         </div>
