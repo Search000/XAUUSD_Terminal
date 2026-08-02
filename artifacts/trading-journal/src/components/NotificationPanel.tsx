@@ -93,24 +93,17 @@ function NotifModal({ notif, onClose, onMarkRead }: { notif: Notif; onClose: () 
   }, [onClose]);
 
   useEffect(() => {
-    if (!notif.isRead) {
-      try {
-        Promise.resolve(onMarkRead(notif.id)).catch(() => { /* non-fatal — user can retry via Mark as read */ });
-      } catch { /* non-fatal */ }
-    }
+    if (!notif.isRead) onMarkRead(notif.id);
   }, [notif.id, notif.isRead, onMarkRead]);
 
   // Portal to document.body — bypasses any parent stacking context/transform
   return createPortal(
     <div
-      style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+      style={{ position: "fixed", inset: 0, zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
       onClick={onClose}
     >
-      {/* backdrop — no backdrop-filter/blur here: combined with other fixed,
-          animated, high-z-index layers (ticker tape, draggable scrollbar)
-          this was triggering a full-screen black GPU-compositing glitch on
-          some browsers (Brave/Chromium). Plain translucent overlay instead. */}
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.75)" }} />
+      {/* backdrop with blur */}
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }} />
 
       {/* card */}
       <div
@@ -362,7 +355,7 @@ export function NotificationPanel() {
                   left: Math.max(8, Math.min(anchorRect.right - 320, window.innerWidth - 320 - 8)),
                   width: 320,
                   maxHeight: Math.max(200, spaceAbove - 16),
-                  zIndex: 2000,
+                  zIndex: 9999,
                 }
               : {
                   position: "fixed",
@@ -370,7 +363,7 @@ export function NotificationPanel() {
                   left: Math.max(8, Math.min(anchorRect.right - 320, window.innerWidth - 320 - 8)),
                   width: 320,
                   maxHeight: Math.max(200, spaceBelow - 16),
-                  zIndex: 2000,
+                  zIndex: 9999,
                 };
 
             return (
