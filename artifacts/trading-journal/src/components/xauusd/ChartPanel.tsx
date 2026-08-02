@@ -3,8 +3,8 @@ import { API_BASE } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@clerk/react';
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLivePrice } from '@/hooks/use-live-price';
 
 type Timeframe = '1m';
 
@@ -203,15 +203,13 @@ export function ChartPanel() {
   const [visibleCount, setVisibleCount] = useState(100);
   const [panOffset, setPanOffset] = useState(0);
   const [mode, setMode] = useState<ViewMode>('line');
-  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const { price: livePrice, marketOpen } = useLivePrice();
   const [liveFlash, setLiveFlash] = useState<'up' | 'down' | null>(null);
   const [tickPulse, setTickPulse] = useState(false);
-  const [marketOpen, setMarketOpen] = useState<boolean | null>(null);
   const dragRef = useRef<{ startX: number; startOff: number } | null>(null);
   const lastLiveRef = useRef<number | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pulseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { isSignedIn } = useAuth();
 
   useEffect(() => {
     const el = containerRef.current;
@@ -224,95 +222,35 @@ export function ChartPanel() {
     return () => ro.disconnect();
   }, []);
 
-  // Live SSE — shared free live-price feed (no auth needed).
+  // Live price now comes from the shared useLivePrice hook (same feed the
+  // ticker uses) instead of this panel running its own duplicate SSE
+  // client. Flash/pulse are still local UI state, derived here whenever
+  // the hook's price changes — frozen while the market is closed, same as
+  // before.
   useEffect(() => {
-    let mounted = true;
-    let abortController = new AbortController();
-    let retryCount = 0;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    if (marketOpen === false || typeof livePrice !== 'number') return;
+    const prev = lastLiveRef.current;
+    const dir = prev !== null
+      ? (livePrice > prev ? 'up' : livePrice < prev ? 'down' : null)
+      : null;
 
-    async function connect() {
-      if (!mounted) return;
-      try {
-        const headers: Record<string, string> = { Accept: 'text/event-stream' };
-
-        const response = await fetch(`${API_BASE}/api/xauusd/live-price`, {
-          headers,
-          credentials: 'include',
-          signal: abortController.signal,
-        });
-
-        if (!response.ok || !response.body) {
-          throw new Error(`SSE connect failed: ${response.status}`);
-        }
-
-        retryCount = 0;
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        // eslint-disable-next-line no-constant-condition
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done || !mounted) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split('\n\n');
-          buffer = parts.pop() ?? '';
-
-          for (const part of parts) {
-            const dataLine = part.split('\n').find(l => l.startsWith('data:'));
-            if (!dataLine) continue;
-            try {
-              const d = JSON.parse(dataLine.slice('data:'.length).trim());
-              if (typeof d.marketOpen === 'boolean' && mounted) setMarketOpen(d.marketOpen);
-              // Market closed: freeze the price/flash/pulse entirely — only
-              // the status flag above is allowed to change.
-              if (d.marketOpen === false) continue;
-              if (typeof d.price === 'number') {
-                const prev = lastLiveRef.current;
-                const dir = prev !== null
-                  ? (d.price > prev ? 'up' : d.price < prev ? 'down' : null)
-                  : null;
-
-                if (dir) {
-                  if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
-                  if (mounted) setLiveFlash(dir);
-                  flashTimerRef.current = setTimeout(() => { if (mounted) setLiveFlash(null); }, 600);
-                }
-
-                if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
-                if (mounted) setTickPulse(true);
-                pulseTimerRef.current = setTimeout(() => { if (mounted) setTickPulse(false); }, 400);
-
-                lastLiveRef.current = d.price;
-                if (mounted) setLivePrice(d.price);
-              }
-            } catch { /* ignore parse errors */ }
-          }
-        }
-
-        if (mounted) retryTimer = setTimeout(connect, 1500);
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-        if (mounted) {
-          const delay = Math.min(2000 * 1.5 ** retryCount, 15000);
-          retryCount = Math.min(retryCount + 1, 6);
-          retryTimer = setTimeout(connect, delay);
-        }
-      }
+    if (dir) {
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+      setLiveFlash(dir);
+      flashTimerRef.current = setTimeout(() => setLiveFlash(null), 600);
     }
 
-    connect();
+    if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
+    setTickPulse(true);
+    pulseTimerRef.current = setTimeout(() => setTickPulse(false), 400);
+
+    lastLiveRef.current = livePrice;
+
     return () => {
-      mounted = false;
-      abortController.abort();
-      if (retryTimer) clearTimeout(retryTimer);
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       if (pulseTimerRef.current) clearTimeout(pulseTimerRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn]);
+  }, [livePrice, marketOpen]);
 
   const { data: chartData, isLoading } = useQuery({
     queryKey: ['xauusd/chart', timeframe],

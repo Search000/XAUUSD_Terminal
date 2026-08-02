@@ -3,6 +3,9 @@ import { API_BASE } from '@/lib/api';
 
 interface LivePriceState {
   price: number | null;
+  changePct: number | null;
+  timestamp: number | null;
+  connected: boolean;
   marketOpen: boolean | null; // null = not known yet
 }
 
@@ -21,8 +24,16 @@ interface LivePriceState {
  * `marketOpen` flips. Callers should pause any of their own recomputation/
  * animation when `marketOpen === false`, the same way this hook does.
  */
+const INITIAL_STATE: LivePriceState = {
+  price: null,
+  changePct: null,
+  timestamp: null,
+  connected: false,
+  marketOpen: null,
+};
+
 export function useLivePrice(): LivePriceState {
-  const [state, setState] = useState<LivePriceState>({ price: null, marketOpen: null });
+  const [state, setState] = useState<LivePriceState>(INITIAL_STATE);
   const priceRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -35,7 +46,7 @@ export function useLivePrice(): LivePriceState {
       if (!mounted) return;
       es = new EventSource(`${API_BASE}/api/xauusd/live-price`, { withCredentials: true });
 
-      es.onopen = () => { retryCount = 0; };
+      es.onopen = () => { if (mounted) { setState(prev => ({ ...prev, connected: true })); } retryCount = 0; };
 
       es.onmessage = (e) => {
         try {
@@ -44,17 +55,24 @@ export function useLivePrice(): LivePriceState {
           const marketOpen = typeof data.marketOpen === 'boolean' ? data.marketOpen : null;
           if (marketOpen === false) {
             // Market closed: only the status flag updates, price stays frozen.
-            setState(prev => ({ price: prev.price ?? priceRef.current, marketOpen: false }));
+            setState(prev => ({ ...prev, price: prev.price ?? priceRef.current, marketOpen: false, connected: true }));
             return;
           }
           if (typeof data.price === 'number') {
             priceRef.current = data.price;
-            setState({ price: data.price, marketOpen: marketOpen ?? true });
+            setState({
+              price: data.price,
+              changePct: typeof data.changePct === 'number' ? data.changePct : null,
+              timestamp: typeof data.timestamp === 'number' ? data.timestamp : null,
+              connected: true,
+              marketOpen: marketOpen ?? true,
+            });
           }
         } catch { /* ignore parse errors */ }
       };
 
       es.onerror = () => {
+        if (mounted) setState(prev => ({ ...prev, connected: false }));
         es?.close();
         const delay = Math.min(1500 * 1.5 ** retryCount, 12000);
         retryCount = Math.min(retryCount + 1, 6);

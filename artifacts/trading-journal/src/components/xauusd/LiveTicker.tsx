@@ -5,6 +5,7 @@ import { Activity, WifiOff, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
 import { useSystemTimezone, minsUtcToZonedTime } from '@/lib/timezone';
+import { useLivePrice } from '@/hooks/use-live-price';
 
 interface TickData {
   price: number;
@@ -245,19 +246,8 @@ function useZonedClock(offsetMinutes: number) {
   return time;
 }
 
-interface LiveFeedTick {
-  symbol: string;
-  price: number;
-  bid?: number;
-  ask?: number;
-  changePct?: number;
-  timestamp: number;
-  marketOpen?: boolean;
-}
-
 export function LiveTicker() {
-  const [liveTick, setLiveTick] = useState<LiveFeedTick | null>(null);
-  const [liveConnected, setLiveConnected] = useState(false);
+  const { price: spotPrice, changePct: spotChangePct, timestamp: spotTimestamp, connected: liveConnected, marketOpen: liveMarketOpen } = useLivePrice();
   const [flash, setFlash] = useState<'up' | 'down' | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevPriceRef = useRef<number | null>(null);
@@ -269,11 +259,13 @@ export function LiveTicker() {
   // Nothing that only changes while the market trades should keep polling
   // once it's closed — Yahoo's own snapshot is frozen over the weekend too,
   // so this just avoids pointless requests rather than changing behavior.
-  const marketClosed = liveTick?.marketOpen === false;
+  const marketClosed = liveMarketOpen === false;
 
   // Baseline 24h stats (Yahoo-sourced) used to fill high/low/open/change
-  // for the free shared live-price feed.
-  const { data: snapshot } = useQuery<{ open24h: number; high24h: number; low24h: number } | null>({
+  // for the free shared live-price feed. `price` here is the raw GC=F
+  // futures quote — a different absolute scale than the live spot feed —
+  // so it's used only to compute a rebase offset, never shown directly.
+  const { data: snapshot } = useQuery<{ price: number; open24h: number; high24h: number; low24h: number } | null>({
     queryKey: ['xauusd/price-snapshot'],
     queryFn: async () => {
       const r = await fetch(`${API_BASE}/api/xauusd/price`, { credentials: 'include' });
@@ -316,74 +308,33 @@ export function LiveTicker() {
     retry: 1,
   });
 
-  // ── Shared free live-price feed (works for every user) ─────────────────────
-  // Plain EventSource is fine here — the endpoint is a public broadcast and
-  // needs no Authorization header.
-  useEffect(() => {
-    let es: EventSource | null = null;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let retryCount = 0;
-    let mounted = true;
-
-    function connect() {
-      if (!mounted) return;
-      es = new EventSource(`${API_BASE}/api/xauusd/live-price`, { withCredentials: true });
-
-      es.onopen = () => { if (mounted) { setLiveConnected(true); retryCount = 0; } };
-
-      es.onmessage = (e) => {
-        try {
-          const data: LiveFeedTick = JSON.parse(e.data);
-          if (!mounted) return;
-          // Market closed: only let the status flag update, never the price/
-          // change fields — this is what actually freezes the ticker instead
-          // of just labelling a still-moving number as "closed".
-          if (data.marketOpen === false) {
-            setLiveTick(prev => (prev ? { ...prev, marketOpen: false } : data));
-          } else {
-            setLiveTick(data);
-          }
-        } catch { /* ignore parse errors */ }
-      };
-
-      es.onerror = () => {
-        if (mounted) setLiveConnected(false);
-        es?.close();
-        const delay = Math.min(1500 * 1.5 ** retryCount, 12000);
-        retryCount = Math.min(retryCount + 1, 6);
-        retryTimer = setTimeout(connect, delay);
-      };
-    }
-
-    connect();
-    return () => {
-      mounted = false;
-      es?.close();
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, []);
-
-  // ── Live tick from the free shared feed (baseline 24h stats filled in
-  // from the snapshot) ────────────────────────────────────────────────────
+  // ── Live tick from the shared useLivePrice hook (baseline 24h stats
+  // filled in from the snapshot) ──────────────────────────────────────────
+  // snapshot.{open,high,low}24h come from Yahoo's GC=F futures quote, which
+  // trades at a different absolute price than the live spot feed above —
+  // same mismatch the panels had. Rebase them by the live-vs-futures offset
+  // (same pattern as FibonacciPanel/TechnicalsPanel/etc.) so 24H HIGH/LOW/
+  // OPEN always sit on the same scale as the big live price next to them.
   const tick: TickData | null = React.useMemo(() => {
-    if (liveTick) {
-      const open = snapshot?.open24h ?? liveTick.price;
-      const change = liveTick.price - open;
-      const changePct = liveTick.changePct ?? (open ? (change / open) * 100 : 0);
+    if (typeof spotPrice === 'number') {
+      const offset = snapshot ? spotPrice - snapshot.price : 0;
+      const open = snapshot ? snapshot.open24h + offset : spotPrice;
+      const change = spotPrice - open;
+      const changePct = spotChangePct ?? (open ? (change / open) * 100 : 0);
       return {
-        price: liveTick.price,
+        price: spotPrice,
         change,
         changePct,
-        high24h: snapshot?.high24h ?? Math.max(liveTick.price, open),
-        low24h: snapshot?.low24h ?? Math.min(liveTick.price, open),
+        high24h: snapshot ? snapshot.high24h + offset : Math.max(spotPrice, open),
+        low24h: snapshot ? snapshot.low24h + offset : Math.min(spotPrice, open),
         open24h: open,
-        timestamp: liveTick.timestamp,
+        timestamp: spotTimestamp ?? Date.now(),
         source: 'live',
-        marketOpen: liveTick.marketOpen,
+        marketOpen: liveMarketOpen ?? undefined,
       };
     }
     return null;
-  }, [liveTick, snapshot]);
+  }, [spotPrice, spotChangePct, spotTimestamp, liveMarketOpen, snapshot]);
 
   const connected = liveConnected;
 
