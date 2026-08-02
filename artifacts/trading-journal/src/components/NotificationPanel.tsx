@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect, useCallback, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { X, Check } from "lucide-react";
+import { X, Bell } from "lucide-react";
 import {
   useListNotifications, getListNotificationsQueryKey,
-  useMarkNotificationRead,
-  getGetNotificationsUnreadCountQueryKey, useGetNotificationsUnreadCount,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
@@ -15,10 +13,6 @@ type Notif = {
   type: string;
   title: string;
   body: string;
-  isRead: boolean;
-  /** UI-only — false until the user actually opens this notification.
-   *  Drives the unread badge/dot, independent of isRead. */
-  isSeen: boolean;
   createdAt: string;
 };
 
@@ -43,6 +37,9 @@ const TYPE_LABELS: Record<string, string> = {
   admin:      "Admin",
 };
 
+// How long a popup stays on screen before auto-dismissing.
+const TOAST_DURATION_MS = 6000;
+
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -59,33 +56,8 @@ function formatListDate(dateStr: string) {
   return `${day} ${month} ${year}, ${hh}:${mm}`;
 }
 
-// ── Premium Bell SVG icon ─────────────────────────────────────────────────────
-function BellIcon({ hasUnread }: { hasUnread: boolean }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="transition-all">
-      {/* bell body */}
-      <path
-        d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"
-        stroke={hasUnread ? "rgb(251 191 36)" : "currentColor"}
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill={hasUnread ? "rgba(251,191,36,0.08)" : "none"}
-      />
-      {/* clapper */}
-      <path
-        d="M13.73 21a2 2 0 0 1-3.46 0"
-        stroke={hasUnread ? "rgb(251 191 36)" : "currentColor"}
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 // ── Notification Detail Modal ─────────────────────────────────────────────────
-function NotifModal({ notif, onClose, onMarkRead }: { notif: Notif; onClose: () => void; onMarkRead: (id: number) => void }) {
+function NotifModal({ notif, onClose }: { notif: Notif; onClose: () => void }) {
   const colorClass = TYPE_COLORS[notif.type] ?? TYPE_COLORS.admin;
   const label = TYPE_LABELS[notif.type] ?? notif.type;
 
@@ -94,10 +66,6 @@ function NotifModal({ notif, onClose, onMarkRead }: { notif: Notif; onClose: () 
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
-
-  useEffect(() => {
-    if (!notif.isSeen) onMarkRead(notif.id);
-  }, [notif.id, notif.isSeen, onMarkRead]);
 
   // Portal to document.body — bypasses any parent stacking context/transform
   return createPortal(
@@ -150,6 +118,42 @@ function NotifModal({ notif, onClose, onMarkRead }: { notif: Notif; onClose: () 
   );
 }
 
+// ── Popup toast for brand-new notifications ────────────────────────────────────
+function NotifToast({ notif, onOpen, onDismiss }: { notif: Notif; onOpen: () => void; onDismiss: () => void }) {
+  const label = TYPE_LABELS[notif.type] ?? notif.type;
+
+  useEffect(() => {
+    const t = setTimeout(onDismiss, TOAST_DURATION_MS);
+    return () => clearTimeout(t);
+  }, [notif.id, onDismiss]);
+
+  return createPortal(
+    <div
+      style={{ position: "fixed", top: 16, right: 16, zIndex: 100000, width: 340, maxWidth: "calc(100vw - 32px)" }}
+      className="bg-[#1a1b1f] border border-amber-500/30 rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200"
+    >
+      <button type="button" onClick={onOpen} className="w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-white/[0.04] transition-colors">
+        <span className="mt-0.5 shrink-0 w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center">
+          <Bell className="w-3.5 h-3.5 text-amber-400" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-mono font-semibold text-amber-400/90 mb-0.5">{label}</p>
+          <p className="text-[13px] font-semibold text-slate-100 leading-snug mb-1">{notif.title}</p>
+          <p className="text-[12px] text-muted-foreground leading-relaxed line-clamp-2">{notif.body}</p>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+          className="shrink-0 text-muted-foreground hover:text-slate-200 transition-colors p-1 -mt-0.5 -mr-1 rounded hover:bg-white/5"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export function NotificationPanel() {
   const [open, setOpen] = useState(false);
@@ -158,7 +162,7 @@ export function NotificationPanel() {
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const qc = useQueryClient();
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, userId } = useAuth();
 
   const { data: notifications = [] } = useListNotifications({
     query: {
@@ -167,19 +171,9 @@ export function NotificationPanel() {
       refetchInterval: 8000, // fallback polling
     },
   });
-  const { data: countData } = useGetNotificationsUnreadCount({
-    query: {
-      queryKey: getGetNotificationsUnreadCountQueryKey(),
-      staleTime: 0,
-      refetchInterval: 8000,
-    },
-  });
-
-  const markOne = useMarkNotificationRead();
 
   const refresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
-    qc.invalidateQueries({ queryKey: getGetNotificationsUnreadCountQueryKey() });
   }, [qc]);
 
   // ── SSE real-time (fetch-based so Bearer token can be sent) ──────────────
@@ -257,7 +251,57 @@ export function NotificationPanel() {
     };
   }, [refresh, getToken, isSignedIn]);
 
-  const unreadCount = countData?.count ?? 0;
+  // ── Popup queue: show a toast for every notification the user hasn't
+  // seen a popup for yet — whether it arrived live (SSE) or was waiting
+  // for them when they logged in. No counts, no read/unread state — this
+  // is the only "new notification" signal in the UI. ───────────────────
+  const [toastQueue, setToastQueue] = useState<Notif[]>([]);
+  const [activeToast, setActiveToast] = useState<Notif | null>(null);
+  const queuedIdsRef = useRef<Set<number>>(new Set());
+  const storageKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!userId || notifications.length === 0) return;
+    const key = `xauusd_last_popup_notif_id_${userId}`;
+    storageKeyRef.current = key;
+
+    const stored = localStorage.getItem(key);
+    if (stored === null) {
+      // First time this device has seen this user's notifications — baseline
+      // to the current newest id so we don't popup the entire history at once.
+      const maxId = Math.max(...notifications.map((n) => n.id));
+      localStorage.setItem(key, String(maxId));
+      return;
+    }
+
+    const lastPoppedId = parseInt(stored, 10);
+    const unpopped = notifications
+      .filter((n) => n.id > lastPoppedId && !queuedIdsRef.current.has(n.id))
+      .sort((a, b) => a.id - b.id);
+
+    if (unpopped.length > 0) {
+      unpopped.forEach((n) => queuedIdsRef.current.add(n.id));
+      setToastQueue((q) => [...q, ...unpopped]);
+    }
+  }, [notifications, userId]);
+
+  // Pull the next toast off the queue once the current one clears.
+  useEffect(() => {
+    if (activeToast || toastQueue.length === 0) return;
+    const [next, ...rest] = toastQueue;
+    setToastQueue(rest);
+    setActiveToast(next);
+  }, [toastQueue, activeToast]);
+
+  const dismissActiveToast = useCallback(() => {
+    if (!activeToast) return;
+    const key = storageKeyRef.current;
+    if (key) {
+      const current = parseInt(localStorage.getItem(key) ?? "0", 10);
+      if (activeToast.id > current) localStorage.setItem(key, String(activeToast.id));
+    }
+    setActiveToast(null);
+  }, [activeToast]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -294,11 +338,6 @@ export function NotificationPanel() {
     };
   }, [open]);
 
-  async function handleMarkOne(id: number) {
-    await markOne.mutateAsync({ id });
-    refresh();
-  }
-
   function openModal(notif: Notif) {
     setModal(notif);
     setOpen(false);
@@ -316,7 +355,7 @@ export function NotificationPanel() {
   return (
     <>
       <div className="relative" ref={panelRef}>
-        {/* ── Bell Button ──────────────────────────────────── */}
+        {/* ── Bell Button — no count, no unread state ─────────── */}
         <button
           ref={buttonRef}
           type="button"
@@ -324,18 +363,11 @@ export function NotificationPanel() {
           className={`relative flex items-center justify-center w-8 h-8 rounded-lg border transition-all duration-150
             ${open
               ? "bg-amber-500/10 border-amber-500/40 text-amber-400"
-              : unreadCount > 0
-                ? "border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/40"
-                : "border-border text-muted-foreground hover:border-border/80 hover:text-slate-300 hover:bg-white/5"
+              : "border-border text-muted-foreground hover:border-border/80 hover:text-slate-300 hover:bg-white/5"
             }`}
           aria-label="Notifications"
         >
-          <BellIcon hasUnread={unreadCount > 0} />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center bg-amber-500 text-black text-[9px] font-bold font-mono rounded-full px-0.5 shadow-md shadow-amber-500/30">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
+          <Bell className="w-4 h-4" />
         </button>
 
         {open && anchorRect && createPortal(
@@ -379,7 +411,7 @@ export function NotificationPanel() {
                 <div className="overflow-y-auto flex-1">
                   {notifications.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
-                      <BellIcon hasUnread={false} />
+                      <Bell className="w-4 h-4" />
                       <span className="text-xs">No notifications yet</span>
                     </div>
                   ) : (
@@ -392,38 +424,29 @@ export function NotificationPanel() {
                           </span>
                         </div>
 
-                        {items.map((notif) => {
-                          // List items always render as "read" (no bold/dot) —
-                          // only the bell badge count tracks per-item isSeen.
-                          const isUnread = false;
-
-                          return (
-                            <button
-                              key={notif.id}
-                              type="button"
-                              onClick={() => openModal(notif as Notif)}
-                              className={`w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-white/[0.04] transition-colors border-b border-[#2a2b30]/50 last:border-0 ${isUnread ? "bg-white/[0.02]" : ""}`}
-                            >
-                              {/* unread dot */}
-                              <span className={`mt-[5px] shrink-0 w-1.5 h-1.5 rounded-full ${isUnread ? "bg-amber-400" : "bg-transparent"}`} />
-
-                              <div className="flex-1 min-w-0">
-                                {/* title */}
-                                <p className={`text-[13px] leading-snug mb-1 ${isUnread ? "font-semibold text-slate-100" : "font-medium text-slate-300"}`}>
-                                  {notif.title}
-                                </p>
-                                {/* body preview — 2 lines max */}
-                                <p className="text-[12px] text-muted-foreground leading-relaxed line-clamp-2 mb-1.5">
-                                  {notif.body}
-                                </p>
-                                {/* date */}
-                                <p className="text-[11px] text-muted-foreground/55">
-                                  {formatListDate(notif.createdAt)}
-                                </p>
-                              </div>
-                            </button>
-                          );
-                        })}
+                        {items.map((notif) => (
+                          <button
+                            key={notif.id}
+                            type="button"
+                            onClick={() => openModal(notif as Notif)}
+                            className="w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-white/[0.04] transition-colors border-b border-[#2a2b30]/50 last:border-0"
+                          >
+                            <div className="flex-1 min-w-0">
+                              {/* title */}
+                              <p className="text-[13px] leading-snug mb-1 font-medium text-slate-300">
+                                {notif.title}
+                              </p>
+                              {/* body preview — 2 lines max */}
+                              <p className="text-[12px] text-muted-foreground leading-relaxed line-clamp-2 mb-1.5">
+                                {notif.body}
+                              </p>
+                              {/* date */}
+                              <p className="text-[11px] text-muted-foreground/55">
+                                {formatListDate(notif.createdAt)}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
                       </div>
                     ))
                   )}
@@ -435,12 +458,20 @@ export function NotificationPanel() {
         )}
       </div>
 
+      {/* ── Popup for a brand-new / not-yet-seen notification ──────── */}
+      {activeToast && (
+        <NotifToast
+          notif={activeToast}
+          onOpen={() => { openModal(activeToast); dismissActiveToast(); }}
+          onDismiss={dismissActiveToast}
+        />
+      )}
+
       {/* ── Full detail modal ────────────────────────────── */}
       {modal && (
         <NotifModal
           notif={modal}
           onClose={() => setModal(null)}
-          onMarkRead={handleMarkOne}
         />
       )}
     </>
