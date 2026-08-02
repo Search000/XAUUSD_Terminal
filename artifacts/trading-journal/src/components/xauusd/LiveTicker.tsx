@@ -141,9 +141,45 @@ function BloombergTape({ metals, goldTick, tape, goldFlash }: { metals: MetalQuo
     ...stats.map(s => ({ kind: 'stat' as const, ...s })),
   ];
 
-  // Triple-duplicate the SAME combined block for seamless infinite scroll
-  // (translateX(-33.333%) below relies on all three copies being identical).
+  // Triple-duplicate the SAME combined block for seamless infinite scroll.
   const allCombined = [...combined, ...combined, ...combined];
+
+  const trackRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef(0);
+
+  // Manually driven scroll instead of a CSS % keyframe. A CSS
+  // translateX(-33.333%) keyframe re-measures against the track's CURRENT
+  // width every frame — if the content width shifts even slightly between
+  // renders (a price gains a digit, DXY/metals data arrives, %-change text
+  // changes length), the animation's effective distance shifts too and it
+  // visibly snaps/jumps instead of scrolling smoothly. Driving position in
+  // real pixels via rAF and wrapping by the measured one-copy width avoids
+  // that entirely — it always scrolls one direction and wraps seamlessly,
+  // never jumping back to the start.
+  useEffect(() => {
+    const PX_PER_SEC = 55;
+    let raf = 0;
+    let lastTs: number | null = null;
+
+    function step(ts: number) {
+      if (lastTs === null) lastTs = ts;
+      const dt = (ts - lastTs) / 1000;
+      lastTs = ts;
+      const track = trackRef.current;
+      if (track) {
+        const oneCopyWidth = track.scrollWidth / 3;
+        posRef.current -= PX_PER_SEC * dt;
+        if (oneCopyWidth > 0 && posRef.current <= -oneCopyWidth) {
+          posRef.current += oneCopyWidth;
+        }
+        track.style.transform = `translateX(${posRef.current}px)`;
+      }
+      raf = requestAnimationFrame(step);
+    }
+
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   return (
     <div
@@ -162,8 +198,9 @@ function BloombergTape({ metals, goldTick, tape, goldFlash }: { metals: MetalQuo
       />
 
       <div
+        ref={trackRef}
         className="flex items-center h-full whitespace-nowrap"
-        style={{ animation: 'bbTape 12s linear infinite', willChange: 'transform' }}
+        style={{ willChange: 'transform' }}
       >
         {allCombined.map((item, i) => {
           if (item.kind === 'price') {
@@ -207,13 +244,6 @@ function BloombergTape({ metals, goldTick, tape, goldFlash }: { metals: MetalQuo
           );
         })}
       </div>
-
-      <style>{`
-        @keyframes bbTape {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-33.333%); }
-        }
-      `}</style>
     </div>
   );
 }
