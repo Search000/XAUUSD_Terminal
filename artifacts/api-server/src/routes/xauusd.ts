@@ -1147,68 +1147,72 @@ function calcRsi(closes: number[], period = 14): number {
   return 100 - 100 / (1 + rs);
 }
 
+async function computeFearGreed(): Promise<{
+  score: number; label: string; color: string;
+  components: { rsi: number; momentum: number; volatility: number; pricePos: number };
+  price: number;
+} | null> {
+  const data = await yfChart("GC=F", "1h", "5d");
+  const candles = candlesFromChart(data);
+  const closes = candles.map((c: any) => c.close);
+  if (closes.length < 20) return null;
+
+  const rsi = calcRsi(closes, 14);
+  const momentum24 = closes.length >= 24
+    ? ((closes[closes.length - 1] - closes[closes.length - 25]) / closes[closes.length - 25]) * 100
+    : 0;
+  const highs = candles.map((c: any) => c.high);
+  const lows  = candles.map((c: any) => c.low);
+  const trs   = candles.slice(1).map((_c: any, i: number) => Math.max(
+    highs[i + 1] - lows[i + 1],
+    Math.abs(highs[i + 1] - closes[i]),
+    Math.abs(lows[i + 1]  - closes[i])
+  ));
+  const atr14 = trs.slice(-14).reduce((a: number, b: number) => a + b, 0) / 14;
+  const atrPct = closes[closes.length - 1] > 0 ? (atr14 / closes[closes.length - 1]) * 100 : 0.3;
+  const volScore = Math.max(0, Math.min(100, 100 - (atrPct / 1.0) * 100));
+
+  const maxClose = Math.max(...closes.slice(-20 * 24));
+  const minClose = Math.min(...closes.slice(-20 * 24));
+  const range = maxClose - minClose || 1;
+  const pricePos = ((closes[closes.length - 1] - minClose) / range) * 100;
+
+  const score = Math.round(
+    rsi           * 0.30 +
+    (momentum24 > 0 ? Math.min(100, 50 + momentum24 * 10) : Math.max(0, 50 + momentum24 * 10)) * 0.25 +
+    volScore      * 0.20 +
+    pricePos      * 0.25
+  );
+  const clamped = Math.max(0, Math.min(100, score));
+
+  let label: string, color: string;
+  if (clamped <= 20)       { label = "Extreme Fear"; color = "#ef5350"; }
+  else if (clamped <= 40)  { label = "Fear";         color = "#f57c00"; }
+  else if (clamped <= 60)  { label = "Neutral";      color = "#f0b90b"; }
+  else if (clamped <= 80)  { label = "Greed";        color = "#26a69a"; }
+  else                     { label = "Extreme Greed"; color = "#00e676"; }
+
+  return {
+    score: clamped,
+    label,
+    color,
+    components: {
+      rsi:        parseFloat(rsi.toFixed(1)),
+      momentum:   parseFloat(momentum24.toFixed(2)),
+      volatility: parseFloat(atrPct.toFixed(3)),
+      pricePos:   parseFloat(pricePos.toFixed(1)),
+    },
+    price: closes[closes.length - 1],
+  };
+}
+
 router.get("/xauusd/fear-greed", async (_req, res) => {
   const now = Date.now();
   if (fgCache && now - fgCacheAt < 5 * 60_000) { res.json(fgCache); return; }
   try {
-    const data = await yfChart("GC=F", "1h", "5d");
-    const candles = candlesFromChart(data);
-    const closes = candles.map((c: any) => c.close);
-    if (closes.length < 20) { res.status(503).json({ error: "Insufficient data" }); return; }
-
-    const rsi = calcRsi(closes, 14);
-    // Momentum: % change over last 24 candles (24h)
-    const momentum24 = closes.length >= 24
-      ? ((closes[closes.length - 1] - closes[closes.length - 25]) / closes[closes.length - 25]) * 100
-      : 0;
-    // Volatility component: lower ATR% = greed, higher = fear
-    const highs = candles.map((c: any) => c.high);
-    const lows  = candles.map((c: any) => c.low);
-    const trs   = candles.slice(1).map((_c: any, i: number) => Math.max(
-      highs[i + 1] - lows[i + 1],
-      Math.abs(highs[i + 1] - closes[i]),
-      Math.abs(lows[i + 1]  - closes[i])
-    ));
-    const atr14 = trs.slice(-14).reduce((a: number, b: number) => a + b, 0) / 14;
-    const atrPct = closes[closes.length - 1] > 0 ? (atr14 / closes[closes.length - 1]) * 100 : 0.3;
-    // Normalize volatility to 0-100 (high atr = fear)
-    const volScore = Math.max(0, Math.min(100, 100 - (atrPct / 1.0) * 100));
-
-    // Price position vs 20-day range
-    const maxClose = Math.max(...closes.slice(-20 * 24));
-    const minClose = Math.min(...closes.slice(-20 * 24));
-    const range = maxClose - minClose || 1;
-    const pricePos = ((closes[closes.length - 1] - minClose) / range) * 100;
-
-    // Weighted composite score
-    const score = Math.round(
-      rsi           * 0.30 +   // RSI
-      (momentum24 > 0 ? Math.min(100, 50 + momentum24 * 10) : Math.max(0, 50 + momentum24 * 10)) * 0.25 +
-      volScore      * 0.20 +   // Volatility (inverted)
-      pricePos      * 0.25     // Price position
-    );
-    const clamped = Math.max(0, Math.min(100, score));
-
-    let label: string, color: string;
-    if (clamped <= 20)       { label = "Extreme Fear"; color = "#ef5350"; }
-    else if (clamped <= 40)  { label = "Fear";         color = "#f57c00"; }
-    else if (clamped <= 60)  { label = "Neutral";      color = "#f0b90b"; }
-    else if (clamped <= 80)  { label = "Greed";        color = "#26a69a"; }
-    else                     { label = "Extreme Greed"; color = "#00e676"; }
-
-    fgCache = {
-      score: clamped,
-      label,
-      color,
-      components: {
-        rsi:        parseFloat(rsi.toFixed(1)),
-        momentum:   parseFloat(momentum24.toFixed(2)),
-        volatility: parseFloat(atrPct.toFixed(3)),
-        pricePos:   parseFloat(pricePos.toFixed(1)),
-      },
-      price: closes[closes.length - 1],
-      timestamp: now,
-    };
+    const result = await computeFearGreed();
+    if (!result) { res.status(503).json({ error: "Insufficient data" }); return; }
+    fgCache = { ...result, timestamp: now };
     fgCacheAt = now;
     res.json(fgCache);
   } catch (err) {
@@ -1923,6 +1927,127 @@ router.get("/xauusd/volume-profile", async (req, res) => {
     logger.error({ err }, "volume-profile error");
     res.status(500).json({ error: "Failed to compute volume profile" });
   }
+});
+
+// ─── Market Tape (top scrolling ticker) ───────────────────────────────────────
+// Aggregates several real data sources into one payload for the Bloomberg-
+// style tape at the top of the terminal: DXY, 10Y Treasury yield, CFTC COT
+// net-long positioning, the gold-specific Fear/Greed score, the currently
+// active trading session, the effective Fed Funds rate, and ATR(14).
+let tapeCache: any = null;
+let tapeCacheAt = 0;
+const TAPE_TTL = 5 * 60 * 1000; // 5 min — COT/Fed data barely move intraday
+
+// CFTC Socrata Open Data API — Legacy Futures Only Combined Report.
+// No API key required. Updated weekly (Fridays, for the prior Tuesday).
+const CFTC_COT_URL =
+  "https://publicreporting.cftc.gov/resource/6dca-aqww.json" +
+  "?$where=" + encodeURIComponent("market_and_exchange_names='GOLD - COMMODITY EXCHANGE INC.'") +
+  "&$order=report_date_as_yyyy_mm_dd DESC&$limit=1";
+
+async function fetchCotNetLongs(): Promise<{ netLongs: number; asOf: string } | null> {
+  try {
+    const res = await fetch(CFTC_COT_URL, { headers: { Accept: "application/json" } });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) return null;
+    const long  = parseFloat(row.noncomm_positions_long_all);
+    const short = parseFloat(row.noncomm_positions_short_all);
+    if (!Number.isFinite(long) || !Number.isFinite(short)) return null;
+    return { netLongs: Math.round(long - short), asOf: row.report_date_as_yyyy_mm_dd };
+  } catch (err) {
+    logger.warn({ err }, "market-tape: CFTC COT fetch failed");
+    return null;
+  }
+}
+
+async function fetchFedFundsRate(): Promise<number | null> {
+  try {
+    const res = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS", {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (!res.ok) return null;
+    const csv = await res.text();
+    const lines = csv.trim().split("\n").slice(1);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const [, val] = lines[i].trim().split(",");
+      if (val && val !== ".") return parseFloat(val);
+    }
+    return null;
+  } catch (err) {
+    logger.warn({ err }, "market-tape: FRED Fed Funds fetch failed");
+    return null;
+  }
+}
+
+function activeSessionLabel(): string {
+  const now = new Date();
+  const utcMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const sessions = [
+    { name: "Sydney",   open: 21 * 60, close: 6 * 60 },
+    { name: "Tokyo",    open: 23 * 60, close: 8 * 60 },
+    { name: "London",   open: 7 * 60,  close: 16 * 60 },
+    { name: "New York", open: 12 * 60, close: 21 * 60 },
+  ];
+  const active = sessions.filter(s =>
+    s.open > s.close ? (utcMin >= s.open || utcMin < s.close) : (utcMin >= s.open && utcMin < s.close)
+  );
+  if (active.length === 0) return "MARKET CLOSED";
+  // If multiple sessions overlap, prefer the busier one (London > New York > Tokyo > Sydney)
+  const priority = ["London", "New York", "Tokyo", "Sydney"];
+  const chosen = active.sort((a, b) => priority.indexOf(a.name) - priority.indexOf(b.name))[0];
+  return `${chosen.name.toUpperCase()} OPEN`;
+}
+
+router.get("/xauusd/market-tape", async (_req, res) => {
+  const now = Date.now();
+  if (tapeCache && now - tapeCacheAt < TAPE_TTL) { res.json(tapeCache); return; }
+
+  const [dxyResult, yieldResult, cotResult, fedResult, volResult, fgResult] = await Promise.allSettled([
+    yfChart("DX-Y.NYB", "1d", "5d"),
+    yfChart("^TNX", "1d", "5d"),
+    fetchCotNetLongs(),
+    fetchFedFundsRate(),
+    yfChart("GC=F", "1h", "5d"),
+    computeFearGreed(),
+  ]);
+
+  const dxyMeta = dxyResult.status === "fulfilled" ? metaFromChart(dxyResult.value) : null;
+  const dxyCloses = dxyResult.status === "fulfilled" ? closesFromChart(dxyResult.value) : [];
+  const dxyPrice = dxyMeta?.regularMarketPrice ?? dxyCloses[dxyCloses.length - 1] ?? null;
+  const dxyPrev  = dxyCloses.length >= 2 ? dxyCloses[dxyCloses.length - 2] : (dxyMeta?.chartPreviousClose ?? null);
+  const dxyChangePct = dxyPrice != null && dxyPrev ? ((dxyPrice - dxyPrev) / dxyPrev) * 100 : null;
+
+  const yMeta = yieldResult.status === "fulfilled" ? metaFromChart(yieldResult.value) : null;
+  const yCloses = yieldResult.status === "fulfilled" ? closesFromChart(yieldResult.value) : [];
+  const yPrice = yMeta?.regularMarketPrice ?? yCloses[yCloses.length - 1] ?? null;
+  const yPrev  = yCloses.length >= 2 ? yCloses[yCloses.length - 2] : (yMeta?.chartPreviousClose ?? null);
+  const yChange = yPrice != null && yPrev != null ? yPrice - yPrev : null;
+
+  const cot = cotResult.status === "fulfilled" ? cotResult.value : null;
+  const fedFunds = fedResult.status === "fulfilled" ? fedResult.value : null;
+  const fearGreed = fgResult.status === "fulfilled" ? fgResult.value : null;
+
+  // ATR(14) computed the same way as the Volatility panel, from 1h candles.
+  let atr14: number | null = null;
+  if (volResult.status === "fulfilled") {
+    const candles = candlesFromChart(volResult.value);
+    if (candles.length > 15) atr14 = computeAtr(candles, 14);
+  }
+
+  tapeCache = {
+    dxy:      dxyPrice != null ? { price: parseFloat(dxyPrice.toFixed(2)), changePct: dxyChangePct != null ? parseFloat(dxyChangePct.toFixed(2)) : null } : null,
+    yield10y: yPrice != null   ? { price: parseFloat(yPrice.toFixed(2)),  change: yChange != null ? parseFloat(yChange.toFixed(2)) : null } : null,
+    cot,
+    fedFunds: fedFunds != null ? parseFloat(fedFunds.toFixed(2)) : null,
+    atr14:    atr14 != null ? parseFloat(atr14.toFixed(2)) : null,
+    fearGreed: fearGreed ? { score: fearGreed.score, label: fearGreed.label } : null,
+    session:  activeSessionLabel(),
+    updatedAt: now,
+  };
+  tapeCacheAt = now;
+  res.json(tapeCache);
 });
 
 export default router;

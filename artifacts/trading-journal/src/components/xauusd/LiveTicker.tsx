@@ -32,6 +32,17 @@ interface MetalQuote {
   unit: string;
 }
 
+interface MarketTapeData {
+  dxy: { price: number; changePct: number | null } | null;
+  yield10y: { price: number; change: number | null } | null;
+  cot: { netLongs: number; asOf: string } | null;
+  fedFunds: number | null;
+  atr14: number | null;
+  fearGreed: { score: number; label: string } | null;
+  session: string;
+  updatedAt: number;
+}
+
 function fmt(n: number, digits = 2) {
   return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
@@ -43,7 +54,7 @@ function fmtCompact(n: number, symbol: string) {
 }
 
 // ─── Bloomberg-style Ticker Tape ──────────────────────────────────────────────
-function BloombergTape({ metals, goldTick }: { metals: MetalQuote[]; goldTick: TickData | null }) {
+function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldTick: TickData | null; tape?: MarketTapeData }) {
   const LABEL_MAP: Record<string, string> = {
     XAU: 'GOLD',
     XAG: 'SILVER',
@@ -80,10 +91,58 @@ function BloombergTape({ metals, goldTick }: { metals: MetalQuote[]; goldTick: T
     }
   }
 
-  if (items.length === 0) return null;
+  // Extra macro/market stat items — real data from /api/xauusd/market-tape
+  // (10Y yield, CFTC COT positioning, gold-specific Fear/Greed score, the
+  // currently active trading session, effective Fed Funds rate, ATR(14)).
+  type StatItem = { label: string; value: string; color: string; arrow?: string };
+  const stats: StatItem[] = [];
 
-  // Triple-duplicate for seamless infinite scroll
-  const allItems = [...items, ...items, ...items];
+  if (tape?.yield10y) {
+    const up = (tape.yield10y.change ?? 0) >= 0;
+    stats.push({
+      label: '10Y YIELD',
+      value: `${tape.yield10y.price.toFixed(2)}%`,
+      color: up ? '#26a69a' : '#ef5350',
+      arrow: up ? '▲' : '▼',
+    });
+  }
+  if (tape?.cot) {
+    const k = tape.cot.netLongs / 1000;
+    stats.push({
+      label: 'COT NET LONGS',
+      value: `${k >= 0 ? '+' : ''}${k.toFixed(0)}K`,
+      color: k >= 0 ? '#26a69a' : '#ef5350',
+    });
+  }
+  if (tape?.fearGreed) {
+    const fg = tape.fearGreed;
+    const color = fg.score <= 40 ? '#ef5350' : fg.score >= 60 ? '#26a69a' : '#f0b90b';
+    stats.push({ label: 'FEAR/GREED', value: `${fg.score} ${fg.label.toUpperCase()}`, color });
+  }
+  if (tape?.session) {
+    stats.push({ label: 'SESSION', value: tape.session, color: '#e0e3eb' });
+  }
+  if (tape?.fedFunds != null) {
+    stats.push({ label: 'FED FUNDS', value: `${tape.fedFunds.toFixed(2)}%`, color: '#e0e3eb' });
+  }
+  if (tape?.atr14 != null) {
+    stats.push({ label: 'ATR(14)', value: tape.atr14.toFixed(1), color: '#e0e3eb' });
+  }
+
+  if (items.length === 0 && stats.length === 0) return null;
+
+  type Combined =
+    | { kind: 'price'; sym: string; label: string; price: number; change: number; changePct: number }
+    | { kind: 'stat'; label: string; value: string; color: string; arrow?: string };
+
+  const combined: Combined[] = [
+    ...items.map(i => ({ kind: 'price' as const, ...i })),
+    ...stats.map(s => ({ kind: 'stat' as const, ...s })),
+  ];
+
+  // Triple-duplicate the SAME combined block for seamless infinite scroll
+  // (translateX(-33.333%) below relies on all three copies being identical).
+  const allCombined = [...combined, ...combined, ...combined];
 
   return (
     <div
@@ -105,28 +164,39 @@ function BloombergTape({ metals, goldTick }: { metals: MetalQuote[]; goldTick: T
         className="flex items-center h-full whitespace-nowrap"
         style={{ animation: 'bbTape 55s linear infinite', willChange: 'transform' }}
       >
-        {allItems.map((item, i) => {
-          const up = item.change >= 0;
-          const color = up ? '#26a69a' : '#ef5350';
-          const arrow = up ? '▲' : '▼';
+        {allCombined.map((item, i) => {
+          if (item.kind === 'price') {
+            const up = item.change >= 0;
+            const color = up ? '#26a69a' : '#ef5350';
+            const arrow = up ? '▲' : '▼';
+            return (
+              <React.Fragment key={i}>
+                <span className="flex items-center gap-[7px] px-5 text-[11px] font-mono leading-none">
+                  <span style={{ color: '#f0b90b', fontWeight: 700, letterSpacing: '0.06em' }}>
+                    {item.label}
+                  </span>
+                  <span style={{ color: '#e0e3eb', fontWeight: 600 }}>
+                    {fmtCompact(item.price, item.label)}
+                  </span>
+                  <span style={{ color }} className="flex items-center gap-[3px]">
+                    <span style={{ fontSize: 9 }}>{arrow}</span>
+                    <span>{Math.abs(item.changePct).toFixed(2)}%</span>
+                  </span>
+                </span>
+                <span style={{ color: '#2a2a3e', fontSize: 16, lineHeight: 1 }}>◆</span>
+              </React.Fragment>
+            );
+          }
           return (
             <React.Fragment key={i}>
               <span className="flex items-center gap-[7px] px-5 text-[11px] font-mono leading-none">
-                {/* Label */}
                 <span style={{ color: '#f0b90b', fontWeight: 700, letterSpacing: '0.06em' }}>
                   {item.label}
                 </span>
-                {/* Price */}
-                <span style={{ color: '#e0e3eb', fontWeight: 600 }}>
-                  {fmtCompact(item.price, item.label)}
-                </span>
-                {/* Change */}
-                <span style={{ color }} className="flex items-center gap-[3px]">
-                  <span style={{ fontSize: 9 }}>{arrow}</span>
-                  <span>{Math.abs(item.changePct).toFixed(2)}%</span>
+                <span style={{ color: item.color, fontWeight: 600 }}>
+                  {item.arrow ? `${item.arrow} ` : ''}{item.value}
                 </span>
               </span>
-              {/* Bloomberg dot separator */}
               <span style={{ color: '#2a2a3e', fontSize: 16, lineHeight: 1 }}>◆</span>
             </React.Fragment>
           );
@@ -234,6 +304,18 @@ export function LiveTicker() {
     retry: 2,
   });
 
+  const { data: tape } = useQuery<MarketTapeData>({
+    queryKey: ['xauusd/market-tape'],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE}/api/xauusd/market-tape`, { credentials: 'include' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    },
+    refetchInterval: 5 * 60 * 1000,
+    staleTime: 4 * 60 * 1000,
+    retry: 1,
+  });
+
   // ── Shared free live-price feed (works for every user) ─────────────────────
   // Plain EventSource is fine here — the endpoint is a public broadcast and
   // needs no Authorization header.
@@ -336,7 +418,7 @@ export function LiveTicker() {
   return (
     <div className="flex flex-col rounded-lg overflow-hidden border border-[#1a1a2e]" style={{ background: '#0d0d14' }}>
       {/* Bloomberg-style scrolling tape */}
-      <BloombergTape metals={metals as MetalQuote[]} goldTick={tick} />
+      <BloombergTape metals={metals as MetalQuote[]} goldTick={tick} tape={tape} />
 
       {/* Main XAU/USD row */}
       <div
