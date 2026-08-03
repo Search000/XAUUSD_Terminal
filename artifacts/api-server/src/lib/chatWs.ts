@@ -19,6 +19,13 @@ const userConnections = new Map<string, Set<WebSocket>>();
 // Map: "admin" → Set of WebSocket connections (admin panel connections)
 const adminConnections = new Set<WebSocket>();
 
+// ── Abuse-prevention limits ────────────────────────────────────────────────
+const MAX_MESSAGE_LENGTH = 2_000; // characters, per chat message
+const MAX_WS_FRAME_BYTES = 8 * 1024; // 8KB — generous headroom over MAX_MESSAGE_LENGTH + JSON overhead
+const RATE_LIMIT_MAX_MESSAGES = 20; // per connection
+const RATE_LIMIT_WINDOW_MS = 10_000; // per 10 seconds
+const HEARTBEAT_INTERVAL_MS = 30_000; // ping every 30s; also doubles as the idle timeout (terminate if no pong by next tick)
+
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "searchoption00@gmail.com")
   .split(",")
   .map((e) => e.trim().toLowerCase())
@@ -147,7 +154,10 @@ async function verifyUserToken(
 }
 
 export function createChatWss(server: Server): WebSocketServer {
-  const wss = new WebSocketServer({ server, path: "/api/chat/ws" });
+  // maxPayload: `ws` automatically closes (code 1009, "Message Too Big")
+  // any connection that sends a frame larger than this, before it ever
+  // reaches our "message" handler.
+  const wss = new WebSocketServer({ server, path: "/api/chat/ws", maxPayload: MAX_WS_FRAME_BYTES });
 
   wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
     const params = parseQueryParams(req.url);
@@ -198,6 +208,37 @@ export function createChatWss(server: Server): WebSocketServer {
       logger.info({ userId }, "User connected to chat WS");
     }
 
+    // Per-connection rate limiting: caps how many "send" messages this
+    // socket can push in a rolling window, independent of message size.
+    const messageTimestamps: number[] = [];
+    function isRateLimited(): boolean {
+      const now = Date.now();
+      while (messageTimestamps.length && now - messageTimestamps[0]! > RATE_LIMIT_WINDOW_MS) {
+        messageTimestamps.shift();
+      }
+      if (messageTimestamps.length >= RATE_LIMIT_MAX_MESSAGES) return true;
+      messageTimestamps.push(now);
+      return false;
+    }
+
+    // Idle-connection cleanup: ping every HEARTBEAT_INTERVAL_MS and
+    // terminate the socket if it hasn't answered with a pong since the
+    // last ping — catches half-open TCP connections that never close
+    // cleanly and would otherwise sit in userConnections/adminConnections
+    // forever, receiving broadcasts pointlessly.
+    let isAlive = true;
+    ws.on("pong", () => {
+      isAlive = true;
+    });
+    const heartbeat = setInterval(() => {
+      if (!isAlive) {
+        ws.terminate();
+        return;
+      }
+      isAlive = false;
+      ws.ping();
+    }, HEARTBEAT_INTERVAL_MS);
+
     // Send conversation history on connect
     try {
       if (isAdmin) {
@@ -220,12 +261,27 @@ export function createChatWss(server: Server): WebSocketServer {
     // Handle messages
     ws.on("message", async (raw) => {
       try {
+        if (isRateLimited()) {
+          ws.send(JSON.stringify({ type: "error", error: "Too many messages — please slow down." }));
+          return;
+        }
+
         const msg = JSON.parse(raw.toString()) as {
           type: string;
           text?: string;
           conversationId?: number;
           targetUserId?: string;
         };
+
+        if (msg.type === "send" && typeof msg.text === "string" && msg.text.length > MAX_MESSAGE_LENGTH) {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters).`,
+            }),
+          );
+          return;
+        }
 
         if (msg.type === "send" && msg.text?.trim()) {
           if (isAdmin) {
@@ -357,10 +413,16 @@ export function createChatWss(server: Server): WebSocketServer {
         }
       } catch (err) {
         logger.error({ err }, "Error handling chat WS message");
+        try {
+          ws.send(JSON.stringify({ type: "error", error: "Invalid message." }));
+        } catch {
+          /* socket may already be closing — nothing to do */
+        }
       }
     });
 
     ws.on("close", () => {
+      clearInterval(heartbeat);
       if (isAdmin) {
         adminConnections.delete(ws);
       } else {
