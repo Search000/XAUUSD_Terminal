@@ -66,6 +66,7 @@ export function SupportPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<Record<number, number>>({});
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
@@ -115,13 +116,21 @@ export function SupportPage() {
                 (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
               );
             });
-            // Add to current conversation if it's open
+            // Add to current conversation if it's open; otherwise mark it
+            // unread so the sidebar shows there's new activity to check.
             setSelected((sel) => {
-              if (sel && sel.id === convId) {
+              const isOpen = !!(sel && sel.id === convId);
+              if (isOpen) {
                 setMessages((prev) => {
                   if (prev.some((m) => m.id === msg.id)) return prev;
                   return [...prev, msg];
                 });
+              }
+              if (msg.senderType === "user" && !isOpen) {
+                setUnreadCounts((prevCounts) => ({
+                  ...prevCounts,
+                  [convId]: (prevCounts[convId] ?? 0) + 1,
+                }));
               }
               return sel;
             });
@@ -153,6 +162,12 @@ export function SupportPage() {
   const openConversation = (conv: Conversation) => {
     setSelected(conv);
     setMessages([]);
+    setUnreadCounts((prev) => {
+      if (!prev[conv.id]) return prev;
+      const next = { ...prev };
+      delete next[conv.id];
+      return next;
+    });
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: "get_history", conversationId: conv.id }));
     }
@@ -171,6 +186,8 @@ export function SupportPage() {
       sendReply();
     }
   };
+
+  const totalUnread = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0);
 
   return (
     <div className="p-6 h-[calc(100vh-80px)] flex flex-col gap-4">
@@ -216,10 +233,15 @@ export function SupportPage() {
       <div className="flex flex-1 gap-4 min-h-0 border border-border rounded-lg overflow-hidden">
         {/* Conversation List */}
         <div className="w-72 flex-shrink-0 border-r border-border overflow-y-auto bg-secondary/10">
-          <div className="p-3 border-b border-border">
+          <div className="p-3 border-b border-border flex items-center justify-between">
             <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
               Conversations ({conversations.length})
             </p>
+            {totalUnread > 0 && (
+              <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-black text-[10px] font-bold font-mono">
+                {totalUnread > 99 ? "99+" : totalUnread}
+              </span>
+            )}
           </div>
 
           {connecting && conversations.length === 0 && (
@@ -235,32 +257,47 @@ export function SupportPage() {
             </div>
           )}
 
-          {conversations.map((conv) => (
-            <button
-              key={conv.id}
-              onClick={() => openConversation(conv)}
-              className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-secondary/40 transition-colors ${
-                selected?.id === conv.id ? "bg-primary/10 border-l-2 border-l-primary" : ""
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
-                    <User className="w-3.5 h-3.5 text-muted-foreground" />
+          {conversations.map((conv) => {
+            const unread = unreadCounts[conv.id] ?? 0;
+            return (
+              <button
+                key={conv.id}
+                onClick={() => openConversation(conv)}
+                className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-secondary/40 transition-colors ${
+                  selected?.id === conv.id ? "bg-primary/10 border-l-2 border-l-primary" : ""
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="relative w-7 h-7 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                      <User className="w-3.5 h-3.5 text-muted-foreground" />
+                      {unread > 0 && (
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background" />
+                      )}
+                    </div>
+                    <p
+                      className={`text-xs font-mono truncate ${
+                        unread > 0 ? "font-bold text-foreground" : "text-foreground"
+                      }`}
+                    >
+                      {conv.email || conv.userId.slice(0, 16) + "…"}
+                    </p>
                   </div>
-                  <p className="text-xs font-mono truncate text-foreground">
-                    {conv.email || conv.userId.slice(0, 16) + "…"}
-                  </p>
+                  {unread > 0 && (
+                    <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-black text-[10px] font-bold font-mono flex-shrink-0">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
                 </div>
-              </div>
-              <div className="flex items-center gap-1 mt-1.5 ml-9">
-                <Clock className="w-3 h-3 text-muted-foreground/60" />
-                <span className="text-[10px] text-muted-foreground/60 font-mono">
-                  {timeAgo(conv.updatedAt)}
-                </span>
-              </div>
-            </button>
-          ))}
+                <div className="flex items-center gap-1 mt-1.5 ml-9">
+                  <Clock className="w-3 h-3 text-muted-foreground/60" />
+                  <span className="text-[10px] text-muted-foreground/60 font-mono">
+                    {timeAgo(conv.updatedAt)}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Chat Area */}
