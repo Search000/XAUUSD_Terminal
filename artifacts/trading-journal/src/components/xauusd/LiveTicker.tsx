@@ -141,6 +141,20 @@ function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldT
     ...stats.map(s => ({ kind: 'stat' as const, ...s })),
   ];
 
+  const lastPriceRef = useRef<Record<string, number>>({});
+  const tickDirRef = useRef<Record<string, 'up' | 'down'>>({});
+  for (const it of combined) {
+    if (it.kind !== 'price') continue;
+    const prev = lastPriceRef.current[it.sym];
+    if (prev !== undefined && it.price !== prev) {
+      tickDirRef.current[it.sym] = it.price > prev ? 'up' : 'down';
+    } else if (prev === undefined) {
+      // First time seeing this symbol: fall back to the day's change sign.
+      tickDirRef.current[it.sym] = it.change >= 0 ? 'up' : 'down';
+    }
+    lastPriceRef.current[it.sym] = it.price;
+  }
+
   // Triple-duplicate the SAME combined block for seamless infinite scroll.
   const allCombined = [...combined, ...combined, ...combined];
 
@@ -204,7 +218,8 @@ function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldT
       >
         {allCombined.map((item, i) => {
           if (item.kind === 'price') {
-            const up = item.change >= 0;
+            const dir = tickDirRef.current[item.sym] ?? (item.change >= 0 ? 'up' : 'down');
+            const up = dir === 'up';
             const color = up ? '#26a69a' : '#ef5350';
             const arrow = up ? '▲' : '▼';
             return (
