@@ -152,18 +152,30 @@ export function createChatWss(server: Server): WebSocketServer {
   wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
     const params = parseQueryParams(req.url);
 
-    // Never trust params["isAdmin"], params["userId"] or params["email"] —
-    // both admin and regular connections must present a real Clerk session
-    // token, verified server-side. The claimed identity is only used as a
-    // pre-auth hint by the client and is discarded here.
-    const verifiedAdminUserId = await verifyAdminToken(params["token"]);
-    const isAdmin = verifiedAdminUserId !== null;
+    // The client tells us which app it's connecting from (admin panel vs
+    // user-facing journal widget) via isAdmin. We trust that as the
+    // *intended* connection mode, but never trust it blindly — whichever
+    // role is claimed must be verified server-side against a real Clerk
+    // session token. This matters because a site owner's account is often
+    // itself an admin account: if they open the regular user chat widget
+    // to test it, that connection must still behave as a normal user
+    // connection (not get silently promoted to the admin socket), or
+    // messages sent from that widget get dropped since it never sends a
+    // conversationId the way the admin panel does.
+    const claimedAdmin = params["isAdmin"] === "true";
 
+    let isAdmin: boolean;
     let userId: string;
     let email: string;
 
-    if (isAdmin) {
-      userId = verifiedAdminUserId!;
+    if (claimedAdmin) {
+      const verifiedAdminUserId = await verifyAdminToken(params["token"]);
+      if (!verifiedAdminUserId) {
+        ws.close(1008, "admin verification failed");
+        return;
+      }
+      isAdmin = true;
+      userId = verifiedAdminUserId;
       email = "";
     } else {
       const verifiedUser = await verifyUserToken(params["token"]);
@@ -171,6 +183,7 @@ export function createChatWss(server: Server): WebSocketServer {
         ws.close(1008, "valid session token required");
         return;
       }
+      isAdmin = false;
       userId = verifiedUser.userId;
       email = verifiedUser.email;
     }
