@@ -190,6 +190,13 @@ export function TechnicalsPanel() {
   // resistance level to "Support" once the live-price rebase offset nudged
   // it below price — collapsing the panel to 1 resistance / 3 support rows
   // instead of the fixed 2/2 layout.
+  // Fixed positional order — NOT sorted by price value. Current Price
+  // always sits in the middle with both resistance levels above it and
+  // both support levels below, even if the live price has since traded
+  // through r1/s1 (r1/r2/s1/s2/pivot are only refreshed every 60s, so the
+  // live tick can genuinely be above r1 or below s1 in between — that's
+  // real breakout behavior, not something to hide, but the layout should
+  // stay put rather than value-sorting rows into a different order).
   type Row = { price: number; fullLabel: string; type: 'resistance' | 'support' | 'pivot' | 'last' };
   const rows: Row[] = [
     data_.r2           && { price: data_.r2,           fullLabel: 'Resistance',    type: 'resistance' as const },
@@ -198,9 +205,7 @@ export function TechnicalsPanel() {
     data_.pivot        && { price: data_.pivot,        fullLabel: 'Pivot Point',   type: 'pivot'       as const },
     data_.s1           && { price: data_.s1,           fullLabel: 'Support',       type: 'support'     as const },
     data_.s2           && { price: data_.s2,           fullLabel: 'Support',       type: 'support'     as const },
-  ]
-    .filter(Boolean)
-    .sort((a: any, b: any) => b.price - a.price) as Row[];
+  ].filter(Boolean) as Row[];
 
   const trendItems = [
     { label: 'Intraday', dir: analysis.intraday  },
