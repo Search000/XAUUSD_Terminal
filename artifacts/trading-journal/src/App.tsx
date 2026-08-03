@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import { ThemeProvider } from "next-themes";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
@@ -11,17 +11,29 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { DraggableScrollbar } from "@/components/DraggableScrollbar";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
-// Pages
-import LandingPage from "@/pages/LandingPage";
-import DashboardPage from "@/pages/DashboardPage";
-import TradesPage from "@/pages/TradesPage";
-import ReportsPage from "@/pages/ReportsPage";
-import InvestorsPage from "@/pages/InvestorsPage";
-import SettingsPage from "@/pages/SettingsPage";
-import ActivatePage from "@/pages/ActivatePage";
-import ScorePage from "@/pages/ScorePage";
-import ExecutionPage from "@/pages/ExecutionPage";
-import { XauusdMonitorPage } from "@/pages/XauusdMonitorPage";
+// Pages — lazy-loaded so each route ships as its own chunk instead of all
+// being bundled into one ~1.8MB initial download. Opening the dashboard
+// no longer pulls in the trades, reports, investors, settings, etc. code.
+const LandingPage = lazy(() => import("@/pages/LandingPage"));
+const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
+const TradesPage = lazy(() => import("@/pages/TradesPage"));
+const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const InvestorsPage = lazy(() => import("@/pages/InvestorsPage"));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
+const ActivatePage = lazy(() => import("@/pages/ActivatePage"));
+const ScorePage = lazy(() => import("@/pages/ScorePage"));
+const ExecutionPage = lazy(() => import("@/pages/ExecutionPage"));
+const XauusdMonitorPage = lazy(() =>
+  import("@/pages/XauusdMonitorPage").then((m) => ({ default: m.XauusdMonitorPage })),
+);
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+    </div>
+  );
+}
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -188,29 +200,31 @@ function ClerkProviderWithRoutes() {
         <TooltipProvider>
           <ClerkQueryClientCacheInvalidator />
           <ClerkAuthTokenSetter />
-          <Switch>
-            <Route path="/" component={HomeRedirect} />
-            <Route path="/sign-in/*?" component={SignInPage} />
-            <Route path="/sign-up/*?" component={SignUpPage} />
-            
-            {/* Protected Routes Wrapper */}
-            <Route path="/activate" component={ActivatePage} />
-            <Route path="/xauusd" component={XauusdMonitorPage} />
-            <Route path="/dashboard" component={DashboardPage} />
-            <Route path="/trades" component={TradesPage} />
-            <Route path="/reports" component={ReportsPage} />
-            <Route path="/investors" component={InvestorsPage} />
-            <Route path="/settings" component={SettingsPage} />
-            <Route path="/achievements"><Redirect to="/score" /></Route>
-            <Route path="/score" component={ScorePage} />
-            <Route path="/execution" component={ExecutionPage} />
+          <Suspense fallback={<RouteFallback />}>
+            <Switch>
+              <Route path="/" component={HomeRedirect} />
+              <Route path="/sign-in/*?" component={SignInPage} />
+              <Route path="/sign-up/*?" component={SignUpPage} />
 
-            <Route>
-              <div className="flex min-h-screen items-center justify-center">
-                <h1 className="text-xl text-slate-400 font-mono">404 | NOT FOUND</h1>
-              </div>
-            </Route>
-          </Switch>
+              {/* Protected Routes Wrapper */}
+              <Route path="/activate" component={ActivatePage} />
+              <Route path="/xauusd" component={XauusdMonitorPage} />
+              <Route path="/dashboard" component={DashboardPage} />
+              <Route path="/trades" component={TradesPage} />
+              <Route path="/reports" component={ReportsPage} />
+              <Route path="/investors" component={InvestorsPage} />
+              <Route path="/settings" component={SettingsPage} />
+              <Route path="/achievements"><Redirect to="/score" /></Route>
+              <Route path="/score" component={ScorePage} />
+              <Route path="/execution" component={ExecutionPage} />
+
+              <Route>
+                <div className="flex min-h-screen items-center justify-center">
+                  <h1 className="text-xl text-slate-400 font-mono">404 | NOT FOUND</h1>
+                </div>
+              </Route>
+            </Switch>
+          </Suspense>
           <Toaster />
           <DraggableScrollbar />
         </TooltipProvider>

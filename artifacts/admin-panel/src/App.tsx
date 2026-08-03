@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import { Toaster } from "sonner";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
@@ -8,16 +8,31 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 import { AdminLayout } from "@/components/layout/AdminLayout";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { LicensesPage } from "@/pages/LicensesPage";
-import { UsersPage } from "@/pages/UsersPage";
-import { OffersPage } from "@/pages/OffersPage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { ContactRequestsPage } from "@/pages/ContactRequestsPage";
-import { NotificationsPage } from "@/pages/NotificationsPage";
-import { ActivityLogPage } from "@/pages/ActivityLogPage";
-import { FeedbackPage } from "@/pages/FeedbackPage";
-import { SupportPage } from "@/pages/SupportPage";
+
+// Pages — lazy-loaded so each admin section ships as its own chunk instead
+// of one large bundle loaded up front just to see the dashboard.
+const DashboardPage = lazy(() => import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const LicensesPage = lazy(() => import("@/pages/LicensesPage").then((m) => ({ default: m.LicensesPage })));
+const UsersPage = lazy(() => import("@/pages/UsersPage").then((m) => ({ default: m.UsersPage })));
+const OffersPage = lazy(() => import("@/pages/OffersPage").then((m) => ({ default: m.OffersPage })));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const ContactRequestsPage = lazy(() =>
+  import("@/pages/ContactRequestsPage").then((m) => ({ default: m.ContactRequestsPage })),
+);
+const NotificationsPage = lazy(() =>
+  import("@/pages/NotificationsPage").then((m) => ({ default: m.NotificationsPage })),
+);
+const ActivityLogPage = lazy(() => import("@/pages/ActivityLogPage").then((m) => ({ default: m.ActivityLogPage })));
+const FeedbackPage = lazy(() => import("@/pages/FeedbackPage").then((m) => ({ default: m.FeedbackPage })));
+const SupportPage = lazy(() => import("@/pages/SupportPage").then((m) => ({ default: m.SupportPage })));
+
+function RouteFallback() {
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient();
 
@@ -193,48 +208,50 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
         <ClerkAuthTokenSetter />
-        <Switch>
-          <Route path="/" component={HomeRedirect} />
-          <Route path="/sign-in/*?" component={SignInPage} />
-          <Route path="/sign-up/*?" component={SignUpPage} />
-          
-          <Route path="/dashboard">
-            <AdminLayout><DashboardPage /></AdminLayout>
-          </Route>
-          <Route path="/licenses">
-            <AdminLayout><LicensesPage /></AdminLayout>
-          </Route>
-          <Route path="/users">
-            <AdminLayout><UsersPage /></AdminLayout>
-          </Route>
-          <Route path="/offers">
-            <AdminLayout><OffersPage /></AdminLayout>
-          </Route>
-          <Route path="/contact-requests">
-            <AdminLayout><ContactRequestsPage /></AdminLayout>
-          </Route>
-          <Route path="/notifications">
-            <AdminLayout><NotificationsPage /></AdminLayout>
-          </Route>
-          <Route path="/settings">
-            <AdminLayout><SettingsPage /></AdminLayout>
-          </Route>
-          <Route path="/feedback">
-            <AdminLayout><FeedbackPage /></AdminLayout>
-          </Route>
-          <Route path="/support">
-            <AdminLayout><SupportPage /></AdminLayout>
-          </Route>
-          <Route path="/activity">
-            <AdminLayout><ActivityLogPage /></AdminLayout>
-          </Route>
+        <Suspense fallback={<RouteFallback />}>
+          <Switch>
+            <Route path="/" component={HomeRedirect} />
+            <Route path="/sign-in/*?" component={SignInPage} />
+            <Route path="/sign-up/*?" component={SignUpPage} />
 
-          <Route>
-            <div className="flex h-screen w-full items-center justify-center bg-background">
-              <h1 className="text-xl text-muted-foreground font-mono">404 | TERMINAL ROUTE NOT FOUND</h1>
-            </div>
-          </Route>
-        </Switch>
+            <Route path="/dashboard">
+              <AdminLayout><DashboardPage /></AdminLayout>
+            </Route>
+            <Route path="/licenses">
+              <AdminLayout><LicensesPage /></AdminLayout>
+            </Route>
+            <Route path="/users">
+              <AdminLayout><UsersPage /></AdminLayout>
+            </Route>
+            <Route path="/offers">
+              <AdminLayout><OffersPage /></AdminLayout>
+            </Route>
+            <Route path="/contact-requests">
+              <AdminLayout><ContactRequestsPage /></AdminLayout>
+            </Route>
+            <Route path="/notifications">
+              <AdminLayout><NotificationsPage /></AdminLayout>
+            </Route>
+            <Route path="/settings">
+              <AdminLayout><SettingsPage /></AdminLayout>
+            </Route>
+            <Route path="/feedback">
+              <AdminLayout><FeedbackPage /></AdminLayout>
+            </Route>
+            <Route path="/support">
+              <AdminLayout><SupportPage /></AdminLayout>
+            </Route>
+            <Route path="/activity">
+              <AdminLayout><ActivityLogPage /></AdminLayout>
+            </Route>
+
+            <Route>
+              <div className="flex h-screen w-full items-center justify-center bg-background">
+                <h1 className="text-xl text-muted-foreground font-mono">404 | TERMINAL ROUTE NOT FOUND</h1>
+              </div>
+            </Route>
+          </Switch>
+        </Suspense>
       </QueryClientProvider>
     </ClerkProvider>
   );
