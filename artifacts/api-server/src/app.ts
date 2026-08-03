@@ -74,7 +74,27 @@ app.use(
 // Clerk proxy must be before body parsers (streams raw bytes)
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-app.use(cors({ credentials: true, origin: true }));
+// Only these origins may make credentialed cross-origin requests.
+// Configure via ALLOWED_ORIGINS (comma-separated) in production — e.g.
+// "https://xauusd-terminal-journal.onrender.com,https://xauusd-terminal-admin.onrender.com"
+// In non-production (local dev), any origin is allowed for convenience.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    credentials: true,
+    origin(origin, callback) {
+      // Same-origin / non-browser requests (curl, server-to-server) send no Origin header.
+      if (!origin) return callback(null, true);
+      if (process.env.NODE_ENV !== "production") return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

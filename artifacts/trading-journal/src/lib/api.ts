@@ -3,7 +3,8 @@
  * On Render, the static journal and the API server are on different domains,
  * so we must prefix every manual fetch with this value.
  * The @workspace/api-client-react hooks use setBaseUrl() in main.tsx instead.
+ *
+ * Sourced from the single shared config in ./apiConfig — do not hardcode a
+ * fallback URL here (see apiConfig.ts for why).
  */
-export const API_BASE =
-  (import.meta.env.VITE_API_URL as string | undefined) ||
-  'https://xauusd-terminal-api.onrender.com';
+export { API_BASE_URL as API_BASE } from './apiConfig';
