@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useUser, useAuth } from "@clerk/react";
 import { Send, ShieldCheck, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { API_BASE_URL, toWsUrl } from "@/lib/apiConfig";
 
 type ChatMessage = {
   id: number;
@@ -12,12 +13,7 @@ type ChatMessage = {
 };
 
 function getWsBaseUrl(): string {
-  const apiUrl =
-    (import.meta.env.VITE_API_URL as string | undefined) ||
-    "https://xauusd-terminal-api.onrender.com";
-  return apiUrl.replace(/^https?:\/\//, (m) =>
-    m.startsWith("https") ? "wss://" : "ws://"
-  );
+  return toWsUrl(API_BASE_URL);
 }
 
 function timeStr(iso: string) {
