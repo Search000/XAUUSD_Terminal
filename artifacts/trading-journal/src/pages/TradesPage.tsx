@@ -68,7 +68,10 @@ export default function TradesPage() {
   const { isLoaded, isSignedIn } = useUser();
   const { data: shares } = useGetInvestorShares({ query: { queryKey: getGetInvestorSharesQueryKey(), enabled: isLoaded && !!isSignedIn } });
   const hasBalance = (shares?.totalInvestment ?? 0) > 0;
-  const { data: trades, isLoading } = useListTrades({ query: { enabled: isLoaded && !!isSignedIn } });
+  const { data: trades, isLoading } = useListTrades(
+    undefined,
+    { query: { queryKey: getListTradesQueryKey(), enabled: isLoaded && !!isSignedIn } },
+  );
   const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [sharingTrade, setSharingTrade] = useState<Trade | null>(null);

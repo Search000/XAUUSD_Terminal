@@ -29,7 +29,7 @@ async function saveNotificationForUser(
   body: string,
 ) {
   await db.insert(notificationsTable).values({ userId, type, title, body });
-  pushNotificationSSE(userId, { type, title, body });
+  pushNotificationSSE(userId);
 }
 
 // ── Archive old Pending trades ────────────────────────────────────────────────

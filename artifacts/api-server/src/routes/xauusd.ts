@@ -472,8 +472,12 @@ router.get("/xauusd/correlations", async (req, res) => {
     if (!responded) {
       responded = true;
       logger.warn("correlations: response timeout — serving stale cache or empty");
-      if (corrCache) return res.json(corrCache);
-      res.status(503).json({ error: "Data unavailable — try again shortly" });
+      if (corrCache) {
+        res.json(corrCache);
+      } else {
+        res.status(503).json({ error: "Data unavailable — try again shortly" });
+      }
+      return;
     }
   }, 20_000);
 
@@ -524,8 +528,11 @@ router.get("/xauusd/correlations", async (req, res) => {
     if (responded) return;
     responded = true;
     logger.error({ err }, "Failed to compute correlations");
-    if (corrCache) return res.json(corrCache);
-    res.status(500).json({ error: "Failed to compute correlations" });
+    if (corrCache) {
+      res.json(corrCache);
+    } else {
+      res.status(500).json({ error: "Failed to compute correlations" });
+    }
   }
 });
 
@@ -1344,7 +1351,8 @@ const SEASONALITY_TTL = 24 * 60 * 60 * 1000; // 24h — monthly data barely chan
 router.get("/xauusd/seasonality", async (_req, res) => {
   const now = Date.now();
   if (seasonalityCache && now - seasonalityCacheAt < SEASONALITY_TTL) {
-    return res.json(seasonalityCache);
+    res.json(seasonalityCache);
+    return;
   }
   try {
     // Fetch GC=F monthly candles — max range Yahoo allows for 1mo interval
@@ -1411,7 +1419,7 @@ const INFLATION_TTL = 24 * 60 * 60 * 1000;
 
 router.get("/xauusd/inflation-vs-gold", async (_req, res) => {
   const now = Date.now();
-  if (inflationCache && now - inflationCacheAt < INFLATION_TTL) return res.json(inflationCache);
+  if (inflationCache && now - inflationCacheAt < INFLATION_TTL) { res.json(inflationCache); return; }
   try {
     // World Bank annual CPI % change for US (no API key needed)
     const wbUrl = "https://api.worldbank.org/v2/country/US/indicator/FP.CPI.TOTL.ZG?format=json&per_page=40&mrv=40";
@@ -1423,7 +1431,7 @@ router.get("/xauusd/inflation-vs-gold", async (_req, res) => {
     // Parse World Bank CPI
     const cpiRaw: Record<number, number> = {};
     if (wbRes.ok) {
-      const wbJson = await wbRes.json();
+      const wbJson = (await wbRes.json()) as any;
       const entries: any[] = wbJson?.[1] ?? [];
       for (const e of entries) {
         if (e?.date && e?.value != null) {
@@ -1480,7 +1488,7 @@ const FED_TTL = 6 * 60 * 60 * 1000; // 6h
 
 router.get("/xauusd/fed-rate-vs-gold", async (_req, res) => {
   const now = Date.now();
-  if (fedRateCache && now - fedRateCacheAt < FED_TTL) return res.json(fedRateCache);
+  if (fedRateCache && now - fedRateCacheAt < FED_TTL) { res.json(fedRateCache); return; }
   try {
     // FRED CSV — FEDFUNDS monthly (no API key needed for CSV download)
     const fredUrl = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS";
@@ -1671,7 +1679,7 @@ const MINING_SYMBOLS = [
 
 router.get("/xauusd/mining-stocks", async (_req, res) => {
   const now = Date.now();
-  if (miningCache && now - miningCacheAt < MINING_TTL) return res.json(miningCache);
+  if (miningCache && now - miningCacheAt < MINING_TTL) { res.json(miningCache); return; }
   try {
     // Use allSettled so one failed Yahoo fetch doesn't kill the entire response
     const settled = await Promise.allSettled(
@@ -1714,8 +1722,11 @@ router.get("/xauusd/mining-stocks", async (_req, res) => {
   } catch (err) {
     logger.error({ err }, "mining-stocks error");
     // Serve stale cache rather than ERR_FAILED
-    if (miningCache) return res.json(miningCache);
-    res.status(500).json({ error: "Failed" });
+    if (miningCache) {
+      res.json(miningCache);
+    } else {
+      res.status(500).json({ error: "Failed" });
+    }
   }
 });
 
@@ -1739,7 +1750,7 @@ async function yfQuote(symbol: string): Promise<number | null> {
     });
     clearTimeout(timer);
     if (!res.ok) return null;
-    const json = await res.json();
+    const json = (await res.json()) as any;
     const result = json?.quoteResponse?.result?.[0];
     return result?.regularMarketPrice ?? result?.ask ?? null;
   } catch {
@@ -2031,7 +2042,7 @@ router.get("/xauusd/cot-history", async (_req, res) => {
   try {
     const cftcRes = await fetch(CFTC_COT_HISTORY_URL, { headers: { Accept: "application/json" } });
     if (!cftcRes.ok) { res.status(502).json({ error: "CFTC data unavailable" }); return; }
-    const rows: any[] = await cftcRes.json();
+    const rows: any[] = (await cftcRes.json()) as any[];
 
     const points = rows
       .map(row => {

@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { notificationsTable } from "@workspace/db";
 import { eq, or, desc, and } from "drizzle-orm";
+import { paramToString } from "../lib/params";
 import { requireAuth } from "../lib/auth";
 import { requireLicense } from "../lib/licenseCheck";
 import { registerSSEClient } from "../lib/sseClients";
@@ -95,7 +96,7 @@ router.patch("/notifications/:id/read", requireAuth, requireLicense, asyncHandle
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(paramToString(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   await db

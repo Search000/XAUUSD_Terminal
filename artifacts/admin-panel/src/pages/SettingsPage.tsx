@@ -303,10 +303,11 @@ export function SettingsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "system-settings"],
     queryFn: getSystemSettings,
-    onSuccess: (d) => {
-      if (!trialDaysDirty) setTrialDaysInput(String(d.trialDurationDays ?? 7));
-    },
   });
+
+  useEffect(() => {
+    if (data && !trialDaysDirty) setTrialDaysInput(String(data.trialDurationDays ?? 7));
+  }, [data, trialDaysDirty]);
 
   const mutation = useMutation({
     mutationFn: updateSystemSettings,

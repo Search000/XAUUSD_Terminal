@@ -3,6 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { supportMessagesTable, usersTable, telegramSettingsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { paramToString } from "../lib/params";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import { sendTelegramMessage } from "../lib/telegram";
 import { asyncHandler } from "../lib/asyncHandler";
@@ -93,7 +94,7 @@ router.get("/admin/support/unread-count", requireAuth, requireAdmin, asyncHandle
 
 /** PUT /api/admin/support/messages/:id/read */
 router.put("/admin/support/messages/:id/read", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(paramToString(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   await db.update(supportMessagesTable)

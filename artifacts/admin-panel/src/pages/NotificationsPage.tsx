@@ -278,7 +278,7 @@ export function NotificationsPage() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => clearAll.mutate({})}
+                    onClick={() => clearAll.mutate()}
                     disabled={clearAll.isPending}
                     className="h-7 text-xs gap-1"
                   >

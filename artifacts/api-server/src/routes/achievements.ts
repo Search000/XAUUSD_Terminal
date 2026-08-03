@@ -38,8 +38,10 @@ router.get("/achievements", requireAuth, requireLicense, asyncHandler(async (req
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     const monthTrades = trades.filter((t) => t.tradeDate >= monthStart);
     if (monthTrades.length === 0) return 0;
-    const firstBalance = monthTrades[0].balance ? parseFloat(monthTrades[0].balance) : null;
-    const lastBalance = monthTrades[monthTrades.length - 1].balance ? parseFloat(monthTrades[monthTrades.length - 1].balance) : null;
+    const firstBalanceRaw = monthTrades[0].balance;
+    const firstBalance = firstBalanceRaw ? parseFloat(firstBalanceRaw) : null;
+    const lastBalanceRaw = monthTrades[monthTrades.length - 1].balance;
+    const lastBalance = lastBalanceRaw ? parseFloat(lastBalanceRaw) : null;
     if (!firstBalance || !lastBalance || firstBalance === 0) return 0;
     return ((lastBalance - firstBalance) / firstBalance) * 100;
   }

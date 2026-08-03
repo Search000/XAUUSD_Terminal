@@ -73,8 +73,6 @@ export function UsersPage() {
     const q = search.toLowerCase();
     return (
       u.email?.toLowerCase().includes(q) ||
-      u.firstName?.toLowerCase().includes(q) ||
-      u.lastName?.toLowerCase().includes(q) ||
       u.userId?.toLowerCase().includes(q) ||
       u.licenseCode?.toLowerCase().includes(q)
     );

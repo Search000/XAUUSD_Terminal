@@ -1,4 +1,4 @@
-import { useListTrades } from "@workspace/api-client-react";
+import { useListTrades, getListTradesQueryKey } from "@workspace/api-client-react";
 import { useUser } from "@clerk/react";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
@@ -21,7 +21,7 @@ export function DailyPnlCalendar() {
   const monthEnd = new Date(viewYear, viewMonth, 0).toISOString().slice(0, 10);
   const { data: trades, isLoading } = useListTrades(
     { startDate: monthStart, endDate: monthEnd, limit: 500 },
-    { query: { enabled: isLoaded && !!isSignedIn } },
+    { query: { queryKey: getListTradesQueryKey({ startDate: monthStart, endDate: monthEnd, limit: 500 }), enabled: isLoaded && !!isSignedIn } },
   );
 
   const dayMap = useMemo<Record<string, DayTrades>>(() => {

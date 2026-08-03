@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLivePrice } from '@/hooks/use-live-price';
 
-type Timeframe = '1m';
+type Timeframe = '1m' | '1h' | '4h' | '1d';
 
 interface Candle {
   time: number;

@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, licensesTable, tradesTable, investorsTable, systemSettingsTable, notificationsTable } from "@workspace/db";
 import { eq, and, count, sum, desc, or } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../lib/auth";
+import { paramToString } from "../lib/params";
 import { asyncHandler } from "../lib/asyncHandler";
 import { z } from "zod";
 
@@ -245,7 +246,7 @@ router.get("/admin/notifications", requireAuth, requireAdmin, asyncHandler(async
 
 /** DELETE /api/admin/notifications/:id */
 router.delete("/admin/notifications/:id", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(paramToString(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [record] = await db

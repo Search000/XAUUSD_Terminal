@@ -89,7 +89,7 @@ export function LicensesPage() {
           l.licenseCode?.toLowerCase().includes(q) ||
           l.transactionCode?.toLowerCase().includes(q) ||
           l.note?.toLowerCase().includes(q) ||
-          (l.userId ?? "").toLowerCase().includes(q)
+          (l.usedByUserId ?? "").toLowerCase().includes(q)
         );
       })
     : allLicensesRaw;
