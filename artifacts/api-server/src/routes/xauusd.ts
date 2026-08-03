@@ -225,9 +225,13 @@ router.get("/xauusd/live-price", (req: Request, res: Response) => {
   });
 });
 
-// GET /api/xauusd/metals — All precious metals prices
+// GET /api/xauusd/metals — All precious metals prices + DXY
 router.get("/xauusd/metals", async (req, res) => {
-  res.json([]);
+  ensureMetalsRefresher();
+  if (!metalsCache) {
+    await refreshMetalsCache();
+  }
+  res.json(metalsCache ?? []);
 });
 
 // GET /api/xauusd/chart

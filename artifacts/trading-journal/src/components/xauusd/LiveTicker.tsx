@@ -211,13 +211,19 @@ function BloombergTape({ metals, goldTick, tape, goldFlash }: { metals: MetalQuo
             const pulseClass = isGold && goldFlash === 'up' ? 'price-pulse-up'
               : isGold && goldFlash === 'down' ? 'price-pulse-down'
               : '';
+            // Gold's own price text tracks live tick direction (green up /
+            // red down), same as the big price above — not the static gray
+            // used for the other tape items.
+            const priceTextColor = isGold
+              ? (goldFlash === 'up' ? '#26a69a' : goldFlash === 'down' ? '#ef5350' : color)
+              : '#e0e3eb';
             return (
               <React.Fragment key={i}>
                 <span className="flex items-center gap-[7px] px-5 text-[11px] font-mono leading-none">
                   <span style={{ color: '#f0b90b', fontWeight: 700, letterSpacing: '0.06em' }}>
                     {item.label}
                   </span>
-                  <span className={cn('rounded px-1', pulseClass)} style={{ color: '#e0e3eb', fontWeight: 600 }}>
+                  <span className={cn('rounded px-1', pulseClass)} style={{ color: priceTextColor, fontWeight: 600 }}>
                     {fmtCompact(item.price, item.label)}
                   </span>
                   <span style={{ color }} className="flex items-center gap-[3px]">
