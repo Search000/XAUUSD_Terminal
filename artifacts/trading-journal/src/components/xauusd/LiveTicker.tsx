@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@clerk/react';
 import { useSystemTimezone, minsUtcToZonedTime } from '@/lib/timezone';
 import { useLivePrice } from '@/hooks/use-live-price';
+import { useLiveMetals, type MetalSymbol as LiveMetalSymbol } from '@/hooks/use-live-metals';
 
 interface TickData {
   price: number;
@@ -408,15 +409,30 @@ export function LiveTicker() {
     flash === 'down' ? '#ef5350' :
     isUp             ? '#26a69a' : '#ef5350';
 
+  // Overlay live SSE ticks onto the 30s-polled metals data. Any instrument
+  // the live feed hasn't resolved yet (or never resolves — unofficial
+  // endpoint, no guarantee) just keeps using its polled price, so this only
+  // improves freshness, it never removes data.
+  const { ticks: liveMetalTicks } = useLiveMetals();
+  const metalsLive: MetalQuote[] = (metals as MetalQuote[]).map(m => {
+    const live = liveMetalTicks[m.symbol as LiveMetalSymbol];
+    if (!live) return m;
+    return {
+      ...m,
+      price: live.price,
+      changePct: live.changePct ?? m.changePct,
+    };
+  });
+
   // DXY from metals list
-  const dxy = (metals as MetalQuote[]).find(m => m.symbol === 'DXY');
+  const dxy = metalsLive.find(m => m.symbol === 'DXY');
   // Other precious metals (excluding Gold)
-  const metalsList = (metals as MetalQuote[]).filter(m => m.symbol !== 'XAU' && m.symbol !== 'DXY' && m.price > 0);
+  const metalsList = metalsLive.filter(m => m.symbol !== 'XAU' && m.symbol !== 'DXY' && m.price > 0);
 
   return (
     <div className="flex flex-col rounded-lg overflow-hidden border border-[#1a1a2e]" style={{ background: '#0d0d14' }}>
       {/* Bloomberg-style scrolling tape */}
-      <BloombergTape metals={metals as MetalQuote[]} goldTick={tick} tape={tape} />
+      <BloombergTape metals={metalsLive} goldTick={tick} tape={tape} />
 
       {/* Main XAU/USD row */}
       <div

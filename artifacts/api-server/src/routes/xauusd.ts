@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { logger } from "../lib/logger";
-import { liveGoldFeed, isGoldMarketOpen, type LiveGoldTick } from "../lib/liveGoldFeed";
+import { liveGoldFeed, isGoldMarketOpen, type LiveMetalTick, type MetalSymbol } from "../lib/liveGoldFeed";
 
 const router = Router();
 
@@ -188,10 +188,26 @@ router.get("/xauusd/price", async (req, res) => {
 // people are watching (50, 100, 1000 — cost is identical), so there's no
 // per-user rate limit and no polling delay.
 const liveBroadcastClients = new Set<Response>();
+const liveMetalsBroadcastClients = new Set<Response>();
 
-liveGoldFeed.on("tick", (tick: LiveGoldTick) => {
+liveGoldFeed.on("tick", (tick: LiveMetalTick) => {
+  if (tick.sym === "XAU") {
+    // Back-compat shape for existing /live-price consumers (no `sym` field).
+    const { sym, ...goldTick } = tick;
+    const payload = `data: ${JSON.stringify(goldTick)}\n\n`;
+    for (const res of liveBroadcastClients) {
+      try {
+        res.write(payload);
+        (res as any).flush?.();
+      } catch {
+        // client already gone — its own close handler will clean up
+      }
+    }
+    return;
+  }
+
   const payload = `data: ${JSON.stringify(tick)}\n\n`;
-  for (const res of liveBroadcastClients) {
+  for (const res of liveMetalsBroadcastClients) {
     try {
       res.write(payload);
       (res as any).flush?.();
@@ -222,6 +238,36 @@ router.get("/xauusd/live-price", (req: Request, res: Response) => {
 
   req.on("close", () => {
     liveBroadcastClients.delete(res);
+  });
+});
+
+// GET /api/xauusd/live-metals — SSE, shared broadcast of SILVER/PLATINUM/
+// PALLADIUM/DXY live ticks (same upstream TradingView connection as gold,
+// just the other instruments). Frontend falls back to the 30s-polled
+// /xauusd/metals endpoint for any instrument that never resolves here.
+router.get("/xauusd/live-metals", (req: Request, res: Response) => {
+  liveGoldFeed.start(); // no-op if already running
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-store");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  liveMetalsBroadcastClients.add(res);
+
+  // send whatever we already have immediately — new viewers don't wait
+  const all = liveGoldFeed.getAllLatest();
+  for (const sym of Object.keys(all) as MetalSymbol[]) {
+    if (sym === "XAU") continue;
+    const tick = all[sym];
+    if (!tick) continue;
+    res.write(`data: ${JSON.stringify({ ...tick, marketOpen: isGoldMarketOpen() })}\n\n`);
+  }
+  (res as any).flush?.();
+
+  req.on("close", () => {
+    liveMetalsBroadcastClients.delete(res);
   });
 });
 
