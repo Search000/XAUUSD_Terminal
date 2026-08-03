@@ -142,6 +142,38 @@ function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldT
     ...stats.map(s => ({ kind: 'stat' as const, ...s })),
   ];
 
+  // Randomize item order, reshuffled every ~25s (roughly one scroll cycle)
+  // instead of always the same fixed Gold→Silver→Platinum→Palladium→DXY→
+  // stats sequence. Re-shuffling has to be decoupled from the render that
+  // rebuilds `combined` (which happens on every price tick, ~1/sec) or the
+  // order would scramble constantly instead of holding steady for a cycle
+  // and then changing — shuffleSeed only bumps on the slow interval below,
+  // and the shuffled order is cached against it.
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setShuffleSeed((s: number) => s + 1), 25000);
+    return () => clearInterval(id);
+  }, []);
+
+  const idOf = (c: Combined) => (c.kind === 'price' ? c.sym : c.label);
+  const idsKey = combined.map(idOf).join('|');
+  const orderRef = useRef<string[]>([]);
+  const orderKeyRef = useRef<string>('');
+  const cacheKey = `${idsKey}::${shuffleSeed}`;
+  if (orderKeyRef.current !== cacheKey) {
+    const ids = combined.map(idOf);
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+    orderRef.current = ids;
+    orderKeyRef.current = cacheKey;
+  }
+  const orderIndex = new Map<string, number>(orderRef.current.map((id: string, i: number) => [id, i]));
+  const shuffledCombined = [...combined].sort(
+    (a, b) => (orderIndex.get(idOf(a)) ?? 0) - (orderIndex.get(idOf(b)) ?? 0)
+  );
+
   const lastPriceRef = useRef<Record<string, number>>({});
   const tickDirRef = useRef<Record<string, 'up' | 'down'>>({});
   for (const it of combined) {
@@ -156,8 +188,8 @@ function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldT
     lastPriceRef.current[it.sym] = it.price;
   }
 
-  // Triple-duplicate the SAME combined block for seamless infinite scroll.
-  const allCombined = [...combined, ...combined, ...combined];
+  // Triple-duplicate the SAME (shuffled) block for seamless infinite scroll.
+  const allCombined = [...shuffledCombined, ...shuffledCombined, ...shuffledCombined];
 
   const trackRef = useRef<HTMLDivElement>(null);
   const posRef = useRef(0);
