@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage } from "node:http";
 import type { Server } from "node:http";
-import { getAuth } from "@clerk/express";
+import { verifyToken, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
   chatConversationsTable,
@@ -87,14 +87,53 @@ function broadcast(sockets: Set<WebSocket>, payload: unknown) {
   }
 }
 
+/**
+ * The client sends `isAdmin=true` as a plain query param on the WS URL —
+ * that is NOT proof of anything (anyone can open a WebSocket with that
+ * param set, no auth required to do so). Real admin status is decided
+ * here, server-side, from a verified Clerk session token: verify the JWT,
+ * look up the authenticated user's email, and check it against
+ * ADMIN_EMAILS (falling back to the DB isAdmin flag) — mirrors the
+ * requireAdmin() check used for the REST admin routes in lib/auth.ts.
+ * Returns the verified Clerk userId on success, or null if the caller
+ * should NOT be treated as admin (missing/invalid token, or a real but
+ * non-admin account).
+ */
+async function verifyAdminToken(token: string | undefined): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+    const verifiedUserId = payload.sub;
+    if (!verifiedUserId) return null;
+
+    const clerkUser = await clerkClient.users.getUser(verifiedUserId);
+    const email = clerkUser.emailAddresses[0]?.emailAddress?.toLowerCase() ?? "";
+    if (email && ADMIN_EMAILS.includes(email)) return verifiedUserId;
+
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.userId, verifiedUserId));
+    if (user?.isAdmin) return verifiedUserId;
+
+    return null;
+  } catch (err) {
+    logger.warn({ err }, "chatWs: admin token verification failed");
+    return null;
+  }
+}
+
 export function createChatWss(server: Server): WebSocketServer {
   const wss = new WebSocketServer({ server, path: "/api/chat/ws" });
 
   wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
     const params = parseQueryParams(req.url);
-    const userId = params["userId"];
-    const isAdmin = params["isAdmin"] === "true";
+    const claimedUserId = params["userId"];
     const email = params["email"] ?? "";
+
+    // Never trust params["isAdmin"] — verify it server-side against a real
+    // Clerk session token. Any unauthenticated caller can set isAdmin=true
+    // in the URL, so that value alone must never grant admin access.
+    const verifiedAdminUserId = await verifyAdminToken(params["token"]);
+    const isAdmin = verifiedAdminUserId !== null;
+    const userId = isAdmin ? verifiedAdminUserId! : claimedUserId;
 
     if (!userId) {
       ws.close(1008, "userId required");
