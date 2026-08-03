@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { telegramSettingsTable, contactAttemptsTable, contactConfigTable, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { sendTelegramMessage } from "../lib/telegram";
 import { requireAuth, requireAdmin } from "../lib/auth";
 import { asyncHandler } from "../lib/asyncHandler";
@@ -38,20 +38,32 @@ router.post("/contact", asyncHandler(async (req, res) => {
 
   const limit = await getLimit();
 
-  const [existing] = await db.select().from(contactAttemptsTable).where(eq(contactAttemptsTable.ip, ip));
+  // Atomic upsert: a plain SELECT-then-UPDATE/INSERT lets two concurrent
+  // requests from the same IP both read the same pre-increment count and
+  // both pass the limit check (race condition / limit bypass). A single
+  // INSERT ... ON CONFLICT DO UPDATE increments the row under Postgres's
+  // own row-level locking, so concurrent requests are correctly serialized
+  // and each gets a distinct, accurate incremented count.
+  const [row] = await db
+    .insert(contactAttemptsTable)
+    .values({ ip, attempts: 1, lastEmail: email ?? null, lastPhone: phone.trim() })
+    .onConflictDoUpdate({
+      target: contactAttemptsTable.ip,
+      set: {
+        attempts: sql`${contactAttemptsTable.attempts} + 1`,
+        lastEmail: email ?? sql`${contactAttemptsTable.lastEmail}`,
+        lastPhone: phone.trim(),
+        lastAt: new Date(),
+      },
+    })
+    .returning();
 
-  let newCount: number;
-  if (existing) {
-    newCount = existing.attempts + 1;
-    await db.update(contactAttemptsTable)
-      .set({ attempts: newCount, lastEmail: email ?? existing.lastEmail, lastPhone: phone.trim(), lastAt: new Date() })
-      .where(eq(contactAttemptsTable.ip, ip));
-  } else {
-    newCount = 1;
-    await db.insert(contactAttemptsTable).values({ ip, attempts: 1, lastEmail: email ?? null, lastPhone: phone.trim() });
-  }
+  const newCount = row.attempts;
+  // Count prior to this attempt (matches the pre-increment value the old
+  // code checked against `limit`) — preserves identical limit semantics.
+  const previousCount = newCount - 1;
 
-  if ((existing?.attempts ?? 0) >= limit) {
+  if (previousCount >= limit) {
     res.json({ success: false, limitReached: true });
     return;
   }
