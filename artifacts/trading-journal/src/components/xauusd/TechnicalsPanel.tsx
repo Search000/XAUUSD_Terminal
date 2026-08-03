@@ -190,22 +190,29 @@ export function TechnicalsPanel() {
   // resistance level to "Support" once the live-price rebase offset nudged
   // it below price — collapsing the panel to 1 resistance / 3 support rows
   // instead of the fixed 2/2 layout.
-  // Fixed positional order — NOT sorted by price value. Current Price
-  // always sits in the middle with both resistance levels above it and
-  // both support levels below, even if the live price has since traded
-  // through r1/s1 (r1/r2/s1/s2/pivot are only refreshed every 60s, so the
-  // live tick can genuinely be above r1 or below s1 in between — that's
-  // real breakout behavior, not something to hide, but the layout should
-  // stay put rather than value-sorting rows into a different order).
+  // Labels are decided by comparing EACH level to the live current price —
+  // NOT by which pivot-formula slot it came from. If price has rallied past
+  // r1, r1 is no longer resistance (a "broken resistance" level trades as
+  // support once price is above it) — keeping it labeled Resistance while
+  // it sits below Current Price is what looked wrong/backwards. This can
+  // occasionally produce 3 support / 1 resistance rows during a breakout;
+  // that's correct market behavior, not a bug — the row count isn't forced
+  // to a fixed 2/2 at the cost of a level's label contradicting its
+  // position relative to price.
   type Row = { price: number; fullLabel: string; type: 'resistance' | 'support' | 'pivot' | 'last' };
+  const cp = data_.currentPrice ?? 0;
+  const dynamicLabel = (price: number): { fullLabel: string; type: Row['type'] } =>
+    price >= cp ? { fullLabel: 'Resistance', type: 'resistance' } : { fullLabel: 'Support', type: 'support' };
   const rows: Row[] = [
-    data_.r2           && { price: data_.r2,           fullLabel: 'Resistance',    type: 'resistance' as const },
-    data_.r1           && { price: data_.r1,           fullLabel: 'Resistance',    type: 'resistance' as const },
-    data_.currentPrice && { price: data_.currentPrice, fullLabel: 'Current Price', type: 'last'        as const },
-    data_.pivot        && { price: data_.pivot,        fullLabel: 'Pivot Point',   type: 'pivot'       as const },
-    data_.s1           && { price: data_.s1,           fullLabel: 'Support',       type: 'support'     as const },
-    data_.s2           && { price: data_.s2,           fullLabel: 'Support',       type: 'support'     as const },
-  ].filter(Boolean) as Row[];
+    data_.r2           && { price: data_.r2,           ...dynamicLabel(data_.r2) },
+    data_.r1           && { price: data_.r1,           ...dynamicLabel(data_.r1) },
+    data_.currentPrice && { price: data_.currentPrice, fullLabel: 'Current Price', type: 'last'  as const },
+    data_.pivot        && { price: data_.pivot,        fullLabel: 'Pivot Point',   type: 'pivot' as const },
+    data_.s1           && { price: data_.s1,           ...dynamicLabel(data_.s1) },
+    data_.s2           && { price: data_.s2,           ...dynamicLabel(data_.s2) },
+  ]
+    .filter(Boolean)
+    .sort((a: any, b: any) => b.price - a.price) as Row[];
 
   const trendItems = [
     { label: 'Intraday', dir: analysis.intraday  },
