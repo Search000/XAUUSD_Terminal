@@ -19,6 +19,17 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+// Chat messages are encrypted with a key derived from SESSION_SECRET. If
+// this is unset in production, chatEncryption.ts would silently fall back
+// to a hardcoded key baked into the source — anyone with source/DB access
+// could then decrypt every chat message, past and future. Fail loudly at
+// startup instead of running silently insecure.
+if (process.env["NODE_ENV"] === "production" && !process.env["SESSION_SECRET"]) {
+  throw new Error(
+    "SESSION_SECRET environment variable is required in production (used to derive the chat encryption key). Set it in the Render dashboard.",
+  );
+}
+
 // ── Prevent unhandled rejections from crashing the process ───────────────────
 // Render free tier: a single failed Yahoo Finance fetch must not kill the server
 process.on("unhandledRejection", (reason) => {
@@ -26,7 +37,12 @@ process.on("unhandledRejection", (reason) => {
 });
 
 process.on("uncaughtException", (err) => {
-  logger.error({ err }, "Uncaught exception — continuing");
+  // Node's internal state can be corrupted after an uncaught exception —
+  // continuing risks serving corrupt/partial state or running
+  // security-sensitive operations incorrectly. Log and exit; Render
+  // restarts the process automatically.
+  logger.error({ err }, "Uncaught exception — exiting for restart");
+  process.exit(1);
 });
 
 // ── Keep-alive (Render free tier spins down after 15 min without INBOUND traffic) ─

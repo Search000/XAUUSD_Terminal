@@ -5,8 +5,21 @@ import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:
  * Key is derived from SESSION_SECRET env var so it persists across restarts.
  */
 function getEncryptionKey(): Buffer {
-  const secret = process.env["SESSION_SECRET"] ?? "default-dev-chat-key-change-in-prod";
-  return createHash("sha256").update(secret).digest();
+  const secret = process.env["SESSION_SECRET"];
+  if (secret) return createHash("sha256").update(secret).digest();
+
+  if (process.env["NODE_ENV"] === "production") {
+    // index.ts already refuses to start in production without
+    // SESSION_SECRET set, so this should be unreachable — but never fall
+    // back to a hardcoded key here regardless.
+    throw new Error("SESSION_SECRET is required in production");
+  }
+
+  // eslint-disable-next-line no-console
+  console.warn(
+    "[chatEncryption] SESSION_SECRET not set — using an insecure dev-only fallback key. Set SESSION_SECRET before deploying.",
+  );
+  return createHash("sha256").update("default-dev-chat-key-change-in-prod").digest();
 }
 
 export function encryptMessage(plaintext: string): { content: string; iv: string } {

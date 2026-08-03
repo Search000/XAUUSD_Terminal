@@ -26,6 +26,8 @@ services:
         sync: false          # NewsAPI.org key for /api/xauusd/news — falls back to static feed if unset
       - key: FRED_API_KEY
         sync: false          # St. Louis Fed FRED key for /api/xauusd/calendar — 100% free, unlimited, get one at fred.stlouisfed.org/docs/api/api_key.html
+      - key: SESSION_SECRET
+        sync: false          # REQUIRED — derives the chat message encryption key. Server refuses to start in production without this set. Generate e.g. `openssl rand -hex 32`.
 
   # ── Trading Journal Frontend (Static Site) ────────────────────────────────
   - type: web
