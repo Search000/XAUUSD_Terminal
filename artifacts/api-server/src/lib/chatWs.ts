@@ -120,24 +120,59 @@ async function verifyAdminToken(token: string | undefined): Promise<string | nul
   }
 }
 
+/**
+ * Verifies the caller's Clerk session token for a regular (non-admin)
+ * connection. Returns the verified { userId, email } pair, or null if the
+ * token is missing/invalid. The client-supplied `userId`/`email` query
+ * params are NEVER trusted — they are only used as pre-auth UI hints and
+ * are replaced by the verified values here.
+ */
+async function verifyUserToken(
+  token: string | undefined
+): Promise<{ userId: string; email: string } | null> {
+  if (!token) return null;
+  try {
+    const payload = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+    const verifiedUserId = payload.sub;
+    if (!verifiedUserId) return null;
+
+    const clerkUser = await clerkClient.users.getUser(verifiedUserId);
+    const email = clerkUser.emailAddresses[0]?.emailAddress?.toLowerCase() ?? "";
+
+    return { userId: verifiedUserId, email };
+  } catch (err) {
+    logger.warn({ err }, "chatWs: user token verification failed");
+    return null;
+  }
+}
+
 export function createChatWss(server: Server): WebSocketServer {
   const wss = new WebSocketServer({ server, path: "/api/chat/ws" });
 
   wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
     const params = parseQueryParams(req.url);
-    const claimedUserId = params["userId"];
-    const email = params["email"] ?? "";
 
-    // Never trust params["isAdmin"] — verify it server-side against a real
-    // Clerk session token. Any unauthenticated caller can set isAdmin=true
-    // in the URL, so that value alone must never grant admin access.
+    // Never trust params["isAdmin"], params["userId"] or params["email"] —
+    // both admin and regular connections must present a real Clerk session
+    // token, verified server-side. The claimed identity is only used as a
+    // pre-auth hint by the client and is discarded here.
     const verifiedAdminUserId = await verifyAdminToken(params["token"]);
     const isAdmin = verifiedAdminUserId !== null;
-    const userId = isAdmin ? verifiedAdminUserId! : claimedUserId;
 
-    if (!userId) {
-      ws.close(1008, "userId required");
-      return;
+    let userId: string;
+    let email: string;
+
+    if (isAdmin) {
+      userId = verifiedAdminUserId!;
+      email = "";
+    } else {
+      const verifiedUser = await verifyUserToken(params["token"]);
+      if (!verifiedUser) {
+        ws.close(1008, "valid session token required");
+        return;
+      }
+      userId = verifiedUser.userId;
+      email = verifiedUser.email;
     }
 
     // Register connection

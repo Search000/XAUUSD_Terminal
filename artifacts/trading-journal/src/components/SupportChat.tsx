@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useUser } from "@clerk/react";
+import { useUser, useAuth } from "@clerk/react";
 import { Send, ShieldCheck, Wifi, WifiOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +26,7 @@ function timeStr(iso: string) {
 
 export function SupportChat() {
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -35,13 +36,20 @@ export function SupportChat() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!isLoaded || !user) return;
 
     setConnecting(true);
     const userId = user.id;
     const email = user.primaryEmailAddress?.emailAddress ?? "";
-    const url = `${getWsBaseUrl()}/api/chat/ws?userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}&isAdmin=false`;
+    // userId/email in the URL are only pre-auth hints; the server verifies
+    // identity from this session token and ignores the claimed values.
+    const token = await getToken();
+    if (!token) {
+      setConnecting(false);
+      return;
+    }
+    const url = `${getWsBaseUrl()}/api/chat/ws?userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}&isAdmin=false&token=${encodeURIComponent(token)}`;
 
     const ws = new WebSocket(url);
     wsRef.current = ws;

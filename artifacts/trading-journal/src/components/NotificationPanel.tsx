@@ -6,6 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/react";
+import { API_BASE } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Notif = {
@@ -193,7 +194,7 @@ export function NotificationPanel() {
           return;
         }
 
-        const response = await fetch("/api/notifications/stream", {
+        const response = await fetch(`${API_BASE}/api/notifications/stream`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "text/event-stream",

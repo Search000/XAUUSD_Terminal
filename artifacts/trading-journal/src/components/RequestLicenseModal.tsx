@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Phone, Send, Loader2, CheckCircle2, X } from "lucide-react";
 import { useAuth } from "@clerk/react";
+import { API_BASE } from "@/lib/api";
 
 const MAX_ATTEMPTS = 3;
 const ATTEMPTS_KEY = "license_request_attempts";
@@ -33,7 +34,7 @@ export function RequestLicenseModal({ email, onClose }: Props) {
     setError(null);
     try {
       const token = await getToken();
-      const res = await fetch(`/api/contact`, {
+      const res = await fetch(`${API_BASE}/api/contact`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

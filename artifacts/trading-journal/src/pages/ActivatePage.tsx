@@ -9,6 +9,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useUser, useAuth } from "@clerk/react";
+import { API_BASE } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Shield, Activity, Loader2, Phone, Send, CheckCircle2, X, Zap } from "lucide-react";
 
@@ -96,7 +97,7 @@ export default function ActivatePage() {
     setContactLoading(true);
     try {
       const token = await getToken();
-      const res = await fetch(`/api/contact`, {
+      const res = await fetch(`${API_BASE}/api/contact`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
