@@ -8,7 +8,7 @@ import { asyncHandler } from "../lib/asyncHandler";
 
 const router = Router();
 
-/** GET /api/me/is-admin — returns { isAdmin: boolean } from DB */
+/** GET /api/me/is-admin — returns { isAdmin: boolean, role: string } from DB */
 router.get("/me/is-admin", requireAuth, asyncHandler(async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) {
@@ -17,7 +17,7 @@ router.get("/me/is-admin", requireAuth, asyncHandler(async (req, res) => {
   }
   await upsertUser(userId);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.userId, userId));
-  res.json({ isAdmin: user?.isAdmin ?? false });
+  res.json({ isAdmin: user?.isAdmin ?? false, role: user?.role ?? "user" });
 }));
 
 export default router;

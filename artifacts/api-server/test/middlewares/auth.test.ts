@@ -118,12 +118,12 @@ describe("requireAdmin", () => {
     expect(fakeRes.body).toEqual({ error: "Forbidden – admin only" });
   });
 
-  it("falls back to the DB isAdmin flag when Clerk lookup succeeds but email isn't in ADMIN_EMAILS", async () => {
+  it("falls back to the DB role when Clerk lookup succeeds but email isn't in ADMIN_EMAILS", async () => {
     getUserMock.mockResolvedValueOnce({
       id: "user_db_admin",
       emailAddresses: [{ emailAddress: "not-in-list@example.com" }],
     });
-    mockDb.resolveNext([{ userId: "user_db_admin", isAdmin: true }]);
+    mockDb.resolveNext([{ userId: "user_db_admin", isAdmin: true, role: "admin" }]);
 
     const { req, res, next, fakeRes } = fakeReqRes("user_db_admin");
     await requireAdmin(req, res, next);

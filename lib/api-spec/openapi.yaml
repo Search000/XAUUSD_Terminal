@@ -559,6 +559,54 @@ paths:
                 items:
                   $ref: "#/components/schemas/AdminUser"
 
+  /admin/roles:
+    get:
+      operationId: adminListRoles
+      tags: [admin]
+      summary: Admin – list staff roles with their permissions and description
+      responses:
+        "200":
+          description: Roles list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RolePermissions"
+
+  /admin/users/{userId}/role:
+    put:
+      operationId: adminSetUserRole
+      tags: [admin]
+      summary: Admin (owner only) – assign a staff role to a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetUserRoleInput"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [userId, email, role]
+                properties:
+                  userId:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    $ref: "#/components/schemas/UserRole"
+
   /admin/stats:
     get:
       operationId: adminGetStats
@@ -1770,14 +1818,43 @@ components:
           type: boolean
 
     # ADMIN
+    UserRole:
+      type: string
+      enum: [user, owner, admin, moderator, support, viewer]
+      description: >
+        Staff role. "user" = regular account, no admin panel access.
+        "owner" is reserved for the account owner and cannot be reassigned.
+
+    RolePermissions:
+      type: object
+      required: [role, description, permissions]
+      properties:
+        role:
+          $ref: "#/components/schemas/UserRole"
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+
+    SetUserRoleInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/UserRole"
+
     AdminUser:
       type: object
-      required: [userId, email, createdAt, hasLicense, isLicenseActive, totalTrades]
+      required: [userId, email, role, createdAt, hasLicense, isLicenseActive, totalTrades]
       properties:
         userId:
           type: string
         email:
           type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
         createdAt:
           type: string
         lastLoginAt:

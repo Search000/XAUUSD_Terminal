@@ -225,6 +225,12 @@ export async function runMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS trades_user_id_idx ON trades (user_id);
       CREATE INDEX IF NOT EXISTS users_email_idx    ON users  (email);
     `);
+    // Staff role column — replaces the old binary is_admin-only model.
+    // Existing admins (is_admin = true) are migrated to role = 'admin' once.
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
+      UPDATE users SET role = 'admin' WHERE is_admin = TRUE AND role = 'user';
+    `);
         logger.info("Migrations complete");
   } catch (err) {
     logger.error({ err }, "Migration failed");

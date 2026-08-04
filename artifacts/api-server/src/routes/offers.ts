@@ -15,7 +15,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { offersTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../lib/auth";
+import { requireAuth } from "../lib/auth";
+import { requirePermission } from "../lib/permissions";
 import { asyncHandler } from "../lib/asyncHandler";
 import { z } from "zod";
 
@@ -62,13 +63,13 @@ router.get("/offers", asyncHandler(async (_req, res) => {
 }));
 
 /** GET /api/admin/offers — admin: all offers */
-router.get("/admin/offers", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/offers", requireAuth, requirePermission("manage_offers"), asyncHandler(async (_req, res) => {
   const offers = await db.select().from(offersTable).orderBy(desc(offersTable.createdAt));
   res.json(offers.map(serializeOffer));
 }));
 
 /** POST /api/admin/offers — create offer */
-router.post("/admin/offers", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.post("/admin/offers", requireAuth, requirePermission("manage_offers"), asyncHandler(async (req, res) => {
   const parsed = createOfferSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid request body" });
@@ -92,7 +93,7 @@ router.post("/admin/offers", requireAuth, requireAdmin, asyncHandler(async (req,
 }));
 
 /** PATCH /api/admin/offers/:id — update offer fields */
-router.patch("/admin/offers/:id", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.patch("/admin/offers/:id", requireAuth, requirePermission("manage_offers"), asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid offer ID" }); return; }
   const parsed = updateOfferSchema.safeParse(req.body);
@@ -122,7 +123,7 @@ router.patch("/admin/offers/:id", requireAuth, requireAdmin, asyncHandler(async 
 }));
 
 /** PATCH /api/admin/offers/:id/toggle — flip isOn */
-router.patch("/admin/offers/:id/toggle", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.patch("/admin/offers/:id/toggle", requireAuth, requirePermission("manage_offers"), asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid offer ID" }); return; }
 
@@ -139,7 +140,7 @@ router.patch("/admin/offers/:id/toggle", requireAuth, requireAdmin, asyncHandler
 }));
 
 /** DELETE /api/admin/offers/:id */
-router.delete("/admin/offers/:id", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.delete("/admin/offers/:id", requireAuth, requirePermission("manage_offers"), asyncHandler(async (req, res) => {
   const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid offer ID" }); return; }
 

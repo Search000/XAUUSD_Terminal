@@ -1,12 +1,38 @@
 import * as React from "react";
-import { useAdminListUsers, getAdminListUsersQueryKey } from "@workspace/api-client-react";
+import { useAdminListUsers, getAdminListUsersQueryKey, customFetch } from "@workspace/api-client-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { format, formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Copy, Check, ChevronDown, ChevronUp, Clock, Search } from "lucide-react";
+import { Copy, Check, ChevronDown, ChevronUp, Clock, Search, ShieldCheck } from "lucide-react";
+
+// Staff role — kept in sync with STAFF_ROLES in lib/db/src/schema/users.ts
+type StaffRole = "owner" | "admin" | "moderator" | "support" | "viewer";
+type UserRole = "user" | StaffRole;
+const ASSIGNABLE_ROLES: Exclude<StaffRole, "owner">[] = ["admin", "moderator", "support", "viewer"];
+
+type RolePermissions = { role: UserRole; description: string; permissions: string[] };
+
+const ROLE_BADGE_STYLE: Record<UserRole, string> = {
+  owner: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+  admin: "border-sky-500/30 bg-sky-500/10 text-sky-400",
+  moderator: "border-violet-500/30 bg-violet-500/10 text-violet-400",
+  support: "border-teal-500/30 bg-teal-500/10 text-teal-400",
+  viewer: "border-slate-500/30 bg-slate-500/10 text-slate-400",
+  user: "border-border bg-muted/30 text-muted-foreground",
+};
+
+function RoleBadge({ role }: { role: UserRole }) {
+  return (
+    <Badge variant="outline" className={cn("text-[10px] uppercase tracking-wide", ROLE_BADGE_STYLE[role])}>
+      {role}
+    </Badge>
+  );
+}
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = React.useState(false);
@@ -64,8 +90,88 @@ function LastLoginBadge({ lastLoginAt }: { lastLoginAt?: string | null }) {
   );
 }
 
+function RoleLegend() {
+  const [open, setOpen] = React.useState(false);
+  const { data: roles } = useQuery({
+    queryKey: ["admin", "roles"],
+    queryFn: () => customFetch<RolePermissions[]>("/api/admin/roles"),
+  });
+
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-6 py-4 text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          What can each role do?
+        </span>
+        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+      </button>
+      {open && (
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-0">
+          {(roles ?? []).map((r) => (
+            <div key={r.role} className="rounded-md border border-border p-3 space-y-1.5">
+              <RoleBadge role={r.role} />
+              <p className="text-xs text-muted-foreground leading-relaxed">{r.description}</p>
+            </div>
+          ))}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function RoleSelect({ userId, role, canEdit }: { userId: string; role: UserRole; canEdit: boolean }) {
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = React.useState(false);
+
+  if (role === "owner" || !canEdit) {
+    return <RoleBadge role={role} />;
+  }
+
+  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nextRole = e.target.value as UserRole;
+    setSaving(true);
+    try {
+      await customFetch(`/api/admin/users/${userId}/role`, {
+        method: "PUT",
+        body: JSON.stringify({ role: nextRole }),
+      });
+      toast.success(`Role updated to ${nextRole}`);
+      queryClient.invalidateQueries({ queryKey: getAdminListUsersQueryKey() });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update role");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <select
+      value={role}
+      disabled={saving}
+      onClick={(e) => e.stopPropagation()}
+      onChange={handleChange}
+      className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] font-mono uppercase tracking-wide disabled:opacity-50"
+    >
+      <option value="user">user</option>
+      {ASSIGNABLE_ROLES.map((r) => (
+        <option key={r} value={r}>{r}</option>
+      ))}
+    </select>
+  );
+}
+
 export function UsersPage() {
   const { data: users, isLoading } = useAdminListUsers({ query: { queryKey: getAdminListUsersQueryKey() } });
+  const { data: me } = useQuery({
+    queryKey: ["me", "is-admin"],
+    queryFn: () => customFetch<{ isAdmin: boolean; role: UserRole }>("/api/me/is-admin"),
+  });
+  const canEditRoles = me?.role === "owner";
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
 
@@ -97,6 +203,8 @@ export function UsersPage() {
         <p className="text-muted-foreground">Full overview — subscription key, balance, name and all details per user.</p>
       </div>
 
+      <RoleLegend />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -119,6 +227,7 @@ export function UsersPage() {
               <TableRow className="text-[11px] uppercase tracking-wider">
                 <TableHead className="w-8"></TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Subscription Key</TableHead>
                 <TableHead>Status</TableHead>
@@ -133,7 +242,7 @@ export function UsersPage() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={11} className="h-32 text-center">
+                  <TableCell colSpan={12} className="h-32 text-center">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <svg className="w-5 h-5 text-primary animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -164,6 +273,15 @@ export function UsersPage() {
                       {/* email */}
                       <TableCell className="font-medium text-foreground text-xs max-w-[180px] truncate">
                         {user.email}
+                      </TableCell>
+
+                      {/* role */}
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <RoleSelect
+                          userId={user.userId}
+                          role={((user as { role?: UserRole }).role ?? "user")}
+                          canEdit={canEditRoles}
+                        />
                       </TableCell>
 
                       {/* investor name */}
@@ -228,7 +346,7 @@ export function UsersPage() {
                     {/* ── Expanded detail panel ── */}
                     {isExpanded && (
                       <TableRow className="bg-muted/10 hover:bg-muted/10">
-                        <TableCell colSpan={11} className="p-0 border-b border-border">
+                        <TableCell colSpan={12} className="p-0 border-b border-border">
                           <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
 
                             {/* Account */}
@@ -287,7 +405,7 @@ export function UsersPage() {
 
               {!isLoading && filteredUsers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground p-8 text-sm font-mono">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground p-8 text-sm font-mono">
                     No users found.
                   </TableCell>
                 </TableRow>

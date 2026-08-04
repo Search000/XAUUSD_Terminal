@@ -4,7 +4,8 @@ import { db } from "@workspace/db";
 import { supportMessagesTable, usersTable, telegramSettingsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { paramToString } from "../lib/params";
-import { requireAuth, requireAdmin } from "../lib/auth";
+import { requireAuth } from "../lib/auth";
+import { requirePermission } from "../lib/permissions";
 import { sendTelegramMessage } from "../lib/telegram";
 import { asyncHandler } from "../lib/asyncHandler";
 import { z } from "zod";
@@ -67,7 +68,7 @@ router.post("/support/message", requireAuth, asyncHandler(async (req, res) => {
 }));
 
 /** GET /api/admin/support/messages */
-router.get("/admin/support/messages", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/support/messages", requireAuth, requirePermission("manage_support"), asyncHandler(async (_req, res) => {
   const rows = await db
     .select()
     .from(supportMessagesTable)
@@ -84,7 +85,7 @@ router.get("/admin/support/messages", requireAuth, requireAdmin, asyncHandler(as
 }));
 
 /** GET /api/admin/support/unread-count */
-router.get("/admin/support/unread-count", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/support/unread-count", requireAuth, requirePermission("manage_support"), asyncHandler(async (_req, res) => {
   const rows = await db
     .select()
     .from(supportMessagesTable)
@@ -93,7 +94,7 @@ router.get("/admin/support/unread-count", requireAuth, requireAdmin, asyncHandle
 }));
 
 /** PUT /api/admin/support/messages/:id/read */
-router.put("/admin/support/messages/:id/read", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.put("/admin/support/messages/:id/read", requireAuth, requirePermission("manage_support"), asyncHandler(async (req, res) => {
   const id = parseInt(paramToString(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -105,7 +106,7 @@ router.put("/admin/support/messages/:id/read", requireAuth, requireAdmin, asyncH
 }));
 
 /** PUT /api/admin/support/messages/read-all */
-router.put("/admin/support/messages/read-all", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.put("/admin/support/messages/read-all", requireAuth, requirePermission("manage_support"), asyncHandler(async (_req, res) => {
   await db.update(supportMessagesTable).set({ isRead: true });
   res.json({ success: true });
 }));

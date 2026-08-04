@@ -40,7 +40,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "searchoption00@gmail.com")
+export const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "searchoption00@gmail.com")
   .split(",")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
@@ -55,19 +55,37 @@ async function getClerkEmail(userId: string): Promise<string> {
   }
 }
 
-/** Upsert user record from Clerk into local DB. Auto-grants admin to ADMIN_EMAILS. */
+/**
+ * Upsert user record from Clerk into local DB.
+ * ADMIN_EMAILS always land as role "owner" (fixed, can't be reassigned — see
+ * lib/permissions.ts requirePermission("manage_roles")). Everyone else keeps
+ * whatever role they already have in the DB (defaults to "user" on first insert).
+ */
 export async function upsertUser(userId: string): Promise<void> {
   try {
     const email = await getClerkEmail(userId);
     if (!email) return;
-    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase());
-    await db
-      .insert(usersTable)
-      .values({ userId, email, isAdmin, lastLoginAt: new Date() })
-      .onConflictDoUpdate({
-        target: usersTable.userId,
-        set: { email, isAdmin, lastLoginAt: new Date() },
-      });
+    const isOwnerEmail = ADMIN_EMAILS.includes(email.toLowerCase());
+
+    if (isOwnerEmail) {
+      await db
+        .insert(usersTable)
+        .values({ userId, email, isAdmin: true, role: "owner", lastLoginAt: new Date() })
+        .onConflictDoUpdate({
+          target: usersTable.userId,
+          set: { email, isAdmin: true, role: "owner", lastLoginAt: new Date() },
+        });
+    } else {
+      await db
+        .insert(usersTable)
+        .values({ userId, email, isAdmin: false, role: "user", lastLoginAt: new Date() })
+        .onConflictDoUpdate({
+          // Don't touch isAdmin/role on conflict — a staff member's assigned
+          // role must survive every login-triggered upsert.
+          target: usersTable.userId,
+          set: { email, lastLoginAt: new Date() },
+        });
+    }
     // Also refresh the in-memory cache so requireAuth doesn't redundantly update
     loginTimestampCache.set(userId, Date.now());
   } catch {
@@ -76,12 +94,15 @@ export async function upsertUser(userId: string): Promise<void> {
 }
 
 /**
- * Require admin role.
+ * Require ANY staff role (owner/admin/moderator/support/viewer) — i.e. some
+ * amount of admin panel access, not necessarily permission to do anything in
+ * particular. Routes that need a specific capability should use
+ * requirePermission(...) from lib/permissions.ts instead.
  *
  * Two-path check so searchoption00@gmail.com ALWAYS gets through:
  *  1. Fast path  — fetch email from Clerk and check against ADMIN_EMAILS directly.
  *                  This works even when the DB has no user record yet.
- *  2. DB fallback — if Clerk API is unreachable, check isAdmin flag in local DB.
+ *  2. DB fallback — if Clerk API is unreachable, check role in local DB.
  *
  * Upserts the user record in the background on every admin request so the DB
  * stays in sync without blocking the response.
@@ -102,10 +123,10 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     return;
   }
 
-  // ── Path 2: fallback to DB flag (covers edge cases) ──────────────────────
+  // ── Path 2: fallback to DB role (covers edge cases + non-owner staff) ────
   try {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.userId, userId));
-    if (user?.isAdmin) {
+    if (user && user.role !== "user") {
       next();
       return;
     }

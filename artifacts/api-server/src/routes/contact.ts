@@ -3,7 +3,8 @@ import { db } from "@workspace/db";
 import { telegramSettingsTable, contactAttemptsTable, contactConfigTable, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { sendTelegramMessage } from "../lib/telegram";
-import { requireAuth, requireAdmin } from "../lib/auth";
+import { requireAuth } from "../lib/auth";
+import { requirePermission } from "../lib/permissions";
 import { asyncHandler } from "../lib/asyncHandler";
 import { z } from "zod";
 
@@ -103,20 +104,20 @@ router.post("/contact", asyncHandler(async (req, res) => {
 // ─── Admin routes ────────────────────────────────────────────────────────────
 
 /** GET /api/admin/contact-attempts */
-router.get("/admin/contact-attempts", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/contact-attempts", requireAuth, requirePermission("manage_contact_requests"), asyncHandler(async (_req, res) => {
   const rows = await db.select().from(contactAttemptsTable).orderBy(contactAttemptsTable.lastAt);
   const limit = await getLimit();
   res.json({ limit, rows });
 }));
 
 /** GET /api/admin/contact-config */
-router.get("/admin/contact-config", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/contact-config", requireAuth, requirePermission("manage_contact_requests"), asyncHandler(async (_req, res) => {
   const limit = await getLimit();
   res.json({ limit });
 }));
 
 /** PUT /api/admin/contact-config */
-router.put("/admin/contact-config", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.put("/admin/contact-config", requireAuth, requirePermission("manage_contact_requests"), asyncHandler(async (req, res) => {
   const parsed = updateContactConfigSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid request body" });
@@ -134,14 +135,14 @@ router.put("/admin/contact-config", requireAuth, requireAdmin, asyncHandler(asyn
 }));
 
 /** DELETE /api/admin/contact-attempts/:ip */
-router.delete("/admin/contact-attempts/:ip", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.delete("/admin/contact-attempts/:ip", requireAuth, requirePermission("manage_contact_requests"), asyncHandler(async (req, res) => {
   const ip = decodeURIComponent(String(req.params.ip));
   await db.delete(contactAttemptsTable).where(eq(contactAttemptsTable.ip, ip));
   res.json({ success: true });
 }));
 
 /** DELETE /api/admin/contact-attempts */
-router.delete("/admin/contact-attempts", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.delete("/admin/contact-attempts", requireAuth, requirePermission("manage_contact_requests"), asyncHandler(async (_req, res) => {
   await db.delete(contactAttemptsTable);
   res.json({ success: true });
 }));

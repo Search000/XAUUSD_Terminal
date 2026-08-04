@@ -14,7 +14,8 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { licensesTable, usersTable, systemSettingsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
-import { requireAuth, requireAdmin, upsertUser } from "../lib/auth";
+import { requireAuth, upsertUser } from "../lib/auth";
+import { requirePermission } from "../lib/permissions";
 import { randomBytes } from "crypto";
 import { asyncHandler } from "../lib/asyncHandler";
 
@@ -29,7 +30,7 @@ function generateCode(): string {
 }
 
 /** POST /api/licenses/generate — Admin only */
-router.post("/licenses/generate", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.post("/licenses/generate", requireAuth, requirePermission("manage_licenses"), asyncHandler(async (req, res) => {
   const parsed = generateLicenseSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid request body" });
@@ -240,13 +241,13 @@ router.post("/licenses/trial", requireAuth, asyncHandler(async (req, res) => {
 }));
 
 /** GET /api/licenses — Admin only */
-router.get("/licenses", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.get("/licenses", requireAuth, requirePermission("view_licenses"), asyncHandler(async (req, res) => {
   const licenses = await db.select().from(licensesTable).orderBy(licensesTable.createdAt);
   res.json(licenses.map(serializeLicense));
 }));
 
 /** PATCH /api/licenses/:id/revoke — Admin only */
-router.patch("/licenses/:id/revoke", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.patch("/licenses/:id/revoke", requireAuth, requirePermission("manage_licenses"), asyncHandler(async (req, res) => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid license ID" }); return; }
@@ -260,7 +261,7 @@ router.patch("/licenses/:id/revoke", requireAuth, requireAdmin, asyncHandler(asy
 }));
 
 /** DELETE /api/licenses/:id — Admin only */
-router.delete("/licenses/:id", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.delete("/licenses/:id", requireAuth, requirePermission("manage_licenses"), asyncHandler(async (req, res) => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid license ID" }); return; }

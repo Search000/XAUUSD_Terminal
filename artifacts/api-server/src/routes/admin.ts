@@ -2,7 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, licensesTable, tradesTable, investorsTable, systemSettingsTable, notificationsTable } from "@workspace/db";
 import { eq, and, count, sum, desc, or } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../lib/auth";
+import { requireAuth, ADMIN_EMAILS } from "../lib/auth";
+import { requirePermission, isStaffRole, ROLE_PERMISSIONS, ROLE_DESCRIPTIONS } from "../lib/permissions";
 import { paramToString } from "../lib/params";
 import { asyncHandler } from "../lib/asyncHandler";
 import { z } from "zod";
@@ -10,7 +11,7 @@ import { z } from "zod";
 const router = Router();
 
 /** GET /api/admin/users */
-router.get("/admin/users", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.get("/admin/users", requireAuth, requirePermission("view_users"), asyncHandler(async (req, res) => {
   const users = await db.select().from(usersTable).orderBy(usersTable.createdAt);
   const now = new Date();
 
@@ -52,6 +53,7 @@ router.get("/admin/users", requireAuth, requireAdmin, asyncHandler(async (req, r
       return {
         userId: user.userId,
         email: user.email,
+        role: user.role,
         createdAt: user.createdAt.toISOString(),
         lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
         hasLicense: !!license,
@@ -72,8 +74,58 @@ router.get("/admin/users", requireAuth, requireAdmin, asyncHandler(async (req, r
   res.json(result);
 }));
 
+/** GET /api/admin/roles — role → permissions + description, for the admin panel legend */
+router.get("/admin/roles", requireAuth, requirePermission("view_users"), asyncHandler(async (_req, res) => {
+  res.json(
+    Object.keys(ROLE_PERMISSIONS).map((role) => ({
+      role,
+      description: ROLE_DESCRIPTIONS[role as keyof typeof ROLE_DESCRIPTIONS],
+      permissions: ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS],
+    })),
+  );
+}));
+
+const setRoleSchema = z.object({
+  role: z.enum(["user", "owner", "admin", "moderator", "support", "viewer"]),
+});
+
+/** PUT /api/admin/users/:userId/role — owner only. Assigns a staff role to a user. */
+router.put("/admin/users/:userId/role", requireAuth, requirePermission("manage_roles"), asyncHandler(async (req, res) => {
+  const targetUserId = paramToString(req.params.userId);
+  const parsed = setRoleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid request body" });
+    return;
+  }
+  const { role } = parsed.data;
+
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.userId, targetUserId));
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  // The owner role is reserved for ADMIN_EMAILS and can't be handed out or taken away here.
+  if (role === "owner" || target.role === "owner" || ADMIN_EMAILS.includes(target.email.toLowerCase())) {
+    res.status(400).json({ error: "The owner role can't be reassigned" });
+    return;
+  }
+  if (!isStaffRole(role) && role !== "user") {
+    res.status(400).json({ error: "Invalid role" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ role, isAdmin: role !== "user" })
+    .where(eq(usersTable.userId, targetUserId))
+    .returning();
+
+  res.json({ userId: updated.userId, email: updated.email, role: updated.role });
+}));
+
 /** GET /api/admin/stats */
-router.get("/admin/stats", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.get("/admin/stats", requireAuth, requirePermission("view_dashboard"), asyncHandler(async (req, res) => {
   const now = new Date();
   const [totalUsers] = await db.select({ count: count() }).from(usersTable);
   const allLicenses = await db.select().from(licensesTable);
@@ -102,7 +154,7 @@ router.get("/admin/stats", requireAuth, requireAdmin, asyncHandler(async (req, r
 }));
 
 /** GET /api/admin/system-settings */
-router.get("/admin/system-settings", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/system-settings", requireAuth, requirePermission("manage_settings"), asyncHandler(async (_req, res) => {
   const [row] = await db.select().from(systemSettingsTable).where(eq(systemSettingsTable.id, 1));
   res.json({
     licenseEnforcementEnabled: row?.licenseEnforcementEnabled ?? true,
@@ -112,7 +164,7 @@ router.get("/admin/system-settings", requireAuth, requireAdmin, asyncHandler(asy
 }));
 
 /** PUT /api/admin/system-settings */
-router.put("/admin/system-settings", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.put("/admin/system-settings", requireAuth, requirePermission("manage_settings"), asyncHandler(async (req, res) => {
   const { licenseEnforcementEnabled, trialModeEnabled, trialDurationDays } = req.body as {
     licenseEnforcementEnabled?: boolean;
     trialModeEnabled?: boolean;
@@ -169,7 +221,7 @@ router.put("/admin/system-settings", requireAuth, requireAdmin, asyncHandler(asy
 }));
 
 /** GET /api/admin/activity — user activity log */
-router.get("/admin/activity", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/activity", requireAuth, requirePermission("view_users"), asyncHandler(async (_req, res) => {
   const users = await db.select().from(usersTable).orderBy(desc(usersTable.lastLoginAt));
   const now = new Date();
 
@@ -211,7 +263,7 @@ const broadcastSchema = z.object({
 });
 
 /** POST /api/admin/notifications/broadcast */
-router.post("/admin/notifications/broadcast", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.post("/admin/notifications/broadcast", requireAuth, requirePermission("manage_notifications"), asyncHandler(async (req, res) => {
   const parsed = broadcastSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid request body" });
@@ -231,7 +283,7 @@ router.post("/admin/notifications/broadcast", requireAuth, requireAdmin, asyncHa
 }));
 
 /** GET /api/admin/notifications */
-router.get("/admin/notifications", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/notifications", requireAuth, requirePermission("manage_notifications"), asyncHandler(async (_req, res) => {
   const rows = await db
     .select()
     .from(notificationsTable)
@@ -245,7 +297,7 @@ router.get("/admin/notifications", requireAuth, requireAdmin, asyncHandler(async
 }));
 
 /** DELETE /api/admin/notifications/:id */
-router.delete("/admin/notifications/:id", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.delete("/admin/notifications/:id", requireAuth, requirePermission("manage_notifications"), asyncHandler(async (req, res) => {
   const id = parseInt(paramToString(req.params.id), 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -274,7 +326,7 @@ router.delete("/admin/notifications/:id", requireAuth, requireAdmin, asyncHandle
 }));
 
 /** DELETE /api/admin/notifications */
-router.delete("/admin/notifications", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.delete("/admin/notifications", requireAuth, requirePermission("manage_notifications"), asyncHandler(async (_req, res) => {
   await db
     .delete(notificationsTable)
     .where(eq(notificationsTable.type, "admin"));
@@ -297,7 +349,7 @@ const sendNotificationSchema = z.object({
 });
 
 /** POST /api/admin/notifications/send-to-users */
-router.post("/admin/notifications/send-to-users", requireAuth, requireAdmin, asyncHandler(async (req, res) => {
+router.post("/admin/notifications/send-to-users", requireAuth, requirePermission("manage_notifications"), asyncHandler(async (req, res) => {
   const parsed = sendNotificationSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid request body" });

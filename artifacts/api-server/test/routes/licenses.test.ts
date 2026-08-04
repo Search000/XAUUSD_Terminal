@@ -170,7 +170,7 @@ describe("GET /api/licenses (admin only)", () => {
     // whose timing relative to the route handler's own query is unpredictable.
     getUserMock.mockResolvedValueOnce({ id: "user_admin", emailAddresses: [{ emailAddress: "user_admin@example.com" }] });
     mockDb.resolveNext(undefined); // requireAuth touchLastLogin fire-and-forget update
-    mockDb.resolveNext([{ userId: "user_admin", isAdmin: true }]); // requireAdmin DB-fallback lookup
+    mockDb.resolveNext([{ userId: "user_admin", isAdmin: true, role: "admin" }]); // requirePermission DB-fallback lookup
     mockDb.resolveNext([
       { id: 1, licenseCode: "AAA-BBB-CCC", transactionCode: "TXN1", durationDays: 30, isActive: true, isRevoked: false, createdAt: new Date() },
     ]); // GET /api/licenses select

@@ -3,7 +3,8 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { feedbackTable, usersTable, telegramSettingsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { requireAuth, requireAdmin } from "../lib/auth";
+import { requireAuth } from "../lib/auth";
+import { requirePermission } from "../lib/permissions";
 import { sendTelegramMessage } from "../lib/telegram";
 import { asyncHandler } from "../lib/asyncHandler";
 import { z } from "zod";
@@ -76,7 +77,7 @@ router.post("/feedback", requireAuth, asyncHandler(async (req, res) => {
 }));
 
 /** GET /api/admin/feedback — admin only */
-router.get("/admin/feedback", requireAuth, requireAdmin, asyncHandler(async (_req, res) => {
+router.get("/admin/feedback", requireAuth, requirePermission("manage_feedback"), asyncHandler(async (_req, res) => {
   const rows = await db.select().from(feedbackTable).orderBy(desc(feedbackTable.createdAt));
   res.json(rows.map(r => ({
     id: r.id,
