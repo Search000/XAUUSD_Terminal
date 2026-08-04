@@ -2158,6 +2158,150 @@ router.get("/xauusd/market-tape", async (_req, res) => {
   res.json(tapeCache);
 });
 
+// ─── Gold/Silver Ratio ──────────────────────────────────────────────────────
+let gsrCache: any = null;
+let gsrCacheAt = 0;
+const GSR_TTL = 5 * 60 * 1000;
+
+router.get("/xauusd/gold-silver-ratio", async (_req, res) => {
+  const now = Date.now();
+  if (gsrCache && now - gsrCacheAt < GSR_TTL) { res.json(gsrCache); return; }
+
+  let responded = false;
+  const guard = setTimeout(() => {
+    if (!responded) {
+      responded = true;
+      if (gsrCache) res.json(gsrCache);
+      else res.status(503).json({ error: "Data unavailable — try again shortly" });
+    }
+  }, 20_000);
+
+  try {
+    const [goldRes, silverRes] = await Promise.allSettled([
+      yfChart("GC=F", "1d", "1y"),
+      yfChart("SI=F", "1d", "1y"),
+    ]);
+    if (responded) return;
+    clearTimeout(guard);
+    responded = true;
+
+    const goldCandles = goldRes.status === "fulfilled" ? candlesFromChart(goldRes.value) : [];
+    const silverCandles = silverRes.status === "fulfilled" ? candlesFromChart(silverRes.value) : [];
+
+    // Align by matching day timestamps (both are daily bars)
+    const silverByDay = new Map<string, number>();
+    for (const c of silverCandles) {
+      silverByDay.set(new Date(c.time).toISOString().slice(0, 10), c.close);
+    }
+
+    const series: { time: number; ratio: number }[] = [];
+    for (const g of goldCandles) {
+      const day = new Date(g.time).toISOString().slice(0, 10);
+      const s = silverByDay.get(day);
+      if (s && s > 0) series.push({ time: g.time, ratio: parseFloat((g.close / s).toFixed(2)) });
+    }
+
+    const ratios = series.map(s => s.ratio);
+    const current = ratios.length ? ratios[ratios.length - 1] : null;
+    const avg20 = ratios.length >= 20
+      ? parseFloat((ratios.slice(-20).reduce((a, b) => a + b, 0) / 20).toFixed(2))
+      : null;
+    const high1y = ratios.length ? Math.max(...ratios) : null;
+    const low1y = ratios.length ? Math.min(...ratios) : null;
+
+    // Historical rule of thumb: >80 gold overvalued vs silver (silver cheap),
+    // <50 silver overvalued vs gold (gold cheap). Everything between = neutral.
+    let signal: string = "NEUTRAL";
+    if (current != null) {
+      if (current >= 80) signal = "SILVER UNDERVALUED";
+      else if (current <= 50) signal = "GOLD UNDERVALUED";
+    }
+
+    gsrCache = {
+      current,
+      avg20,
+      high1y: high1y != null ? parseFloat(high1y.toFixed(2)) : null,
+      low1y: low1y != null ? parseFloat(low1y.toFixed(2)) : null,
+      signal,
+      series: series.slice(-90), // last ~90 trading days for the sparkline
+      updatedAt: now,
+    };
+    gsrCacheAt = now;
+    res.json(gsrCache);
+  } catch (err) {
+    clearTimeout(guard);
+    if (responded) return;
+    responded = true;
+    logger.error({ err }, "Failed to compute gold/silver ratio");
+    if (gsrCache) res.json(gsrCache);
+    else res.status(500).json({ error: "Failed to compute gold/silver ratio" });
+  }
+});
+
+// ─── VIX / Risk Sentiment ───────────────────────────────────────────────────
+let vixCache: any = null;
+let vixCacheAt = 0;
+const VIX_TTL = 60 * 1000;
+
+function vixLabel(v: number): string {
+  if (v < 15) return "COMPLACENT";
+  if (v < 20) return "NORMAL";
+  if (v < 30) return "ELEVATED";
+  return "FEAR / PANIC";
+}
+
+router.get("/xauusd/vix", async (_req, res) => {
+  const now = Date.now();
+  if (vixCache && now - vixCacheAt < VIX_TTL) { res.json(vixCache); return; }
+
+  let responded = false;
+  const guard = setTimeout(() => {
+    if (!responded) {
+      responded = true;
+      if (vixCache) res.json(vixCache);
+      else res.status(503).json({ error: "Data unavailable — try again shortly" });
+    }
+  }, 20_000);
+
+  try {
+    const data = await yfChart("^VIX", "1d", "3mo");
+    if (responded) return;
+    clearTimeout(guard);
+    responded = true;
+
+    const meta = metaFromChart(data);
+    const candles = candlesFromChart(data);
+    const closes = candles.map(c => c.close);
+
+    const current = meta?.regularMarketPrice ?? closes[closes.length - 1] ?? null;
+    const prev = closes.length >= 2 ? closes[closes.length - 2] : (meta?.chartPreviousClose ?? null);
+    const change = current != null && prev != null ? parseFloat((current - prev).toFixed(2)) : null;
+    const changePct = current != null && prev ? parseFloat((((current - prev) / prev) * 100).toFixed(2)) : null;
+    const avg20 = closes.length >= 20
+      ? parseFloat((closes.slice(-20).reduce((a, b) => a + b, 0) / 20).toFixed(2))
+      : null;
+
+    vixCache = {
+      value: current != null ? parseFloat(current.toFixed(2)) : null,
+      change,
+      changePct,
+      avg20,
+      label: current != null ? vixLabel(current) : null,
+      series: candles.slice(-60).map(c => ({ time: c.time, value: parseFloat(c.close.toFixed(2)) })),
+      updatedAt: now,
+    };
+    vixCacheAt = now;
+    res.json(vixCache);
+  } catch (err) {
+    clearTimeout(guard);
+    if (responded) return;
+    responded = true;
+    logger.error({ err }, "Failed to fetch VIX");
+    if (vixCache) res.json(vixCache);
+    else res.status(500).json({ error: "Failed to fetch VIX" });
+  }
+});
+
 export default router;
 
 
