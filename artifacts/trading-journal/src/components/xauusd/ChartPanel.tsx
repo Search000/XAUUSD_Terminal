@@ -656,11 +656,24 @@ export function ChartPanel() {
 
   const onMouseLeave = useCallback(() => setCrosshair(null), []);
 
-  const onWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
+  const onWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY;
     setVisibleCount(v => Math.min(Math.max(10, Math.round(v * (delta > 0 ? 1.1 : 0.9))), candles.length || 200));
   }, [candles.length]);
+
+  // React attaches its synthetic `onWheel` listener passively at the root
+  // for scroll-perf reasons, so calling preventDefault() through the JSX
+  // prop silently fails (and logs a console warning) — the page scrolls
+  // out from under the user while they're trying to zoom the chart.
+  // Attaching a native, explicitly non-passive listener is the standard
+  // workaround.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [onWheel]);
 
   // Toolbar zoom buttons — same scaling factor as the wheel handler
   const zoomIn = useCallback(() => {
@@ -794,7 +807,6 @@ export function ChartPanel() {
           style={{ width: '100%', height: '100%', cursor: 'crosshair', display: 'block' }}
           onMouseMove={onMouseMoveCanvas}
           onMouseLeave={onMouseLeave}
-          onWheel={onWheel}
           onMouseDown={onMouseDown}
           onMouseUp={onMouseUp}
         />
