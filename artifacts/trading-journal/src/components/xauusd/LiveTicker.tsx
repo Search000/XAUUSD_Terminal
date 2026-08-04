@@ -55,6 +55,41 @@ function fmtCompact(n: number, symbol: string) {
   return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
+// ─── Tick-threshold price coloring ────────────────────────────────────────────
+// Colors a price GREEN once it rises by >= UP_THRESHOLD since the last tick,
+// or RED once it falls by >= DOWN_THRESHOLD — even tiny moves flip the color.
+// Below-threshold noise keeps the previous color instead of flickering.
+const TICK_UP_THRESHOLD = 0.001;
+const TICK_DOWN_THRESHOLD = 0.0001;
+
+function useTickColors() {
+  const lastPriceRef = useRef<Record<string, number>>({});
+  const colorRef = useRef<Record<string, 'up' | 'down'>>({});
+
+  function getColor(
+    key: string,
+    price: number | undefined | null,
+    fallback: 'up' | 'down'
+  ): 'up' | 'down' {
+    if (typeof price !== 'number' || Number.isNaN(price)) {
+      return colorRef.current[key] ?? fallback;
+    }
+    const prev = lastPriceRef.current[key];
+    if (prev === undefined) {
+      colorRef.current[key] = fallback;
+    } else {
+      const delta = price - prev;
+      if (delta >= TICK_UP_THRESHOLD) colorRef.current[key] = 'up';
+      else if (delta <= -TICK_DOWN_THRESHOLD) colorRef.current[key] = 'down';
+      // else: move too small — keep previous color
+    }
+    lastPriceRef.current[key] = price;
+    return colorRef.current[key] ?? fallback;
+  }
+
+  return { getColor };
+}
+
 // ─── Bloomberg-style Ticker Tape ──────────────────────────────────────────────
 function BloombergTape({ metals, goldTick, tape }: { metals: MetalQuote[]; goldTick: TickData | null; tape?: MarketTapeData }) {
   const LABEL_MAP: Record<string, string> = {
@@ -330,6 +365,7 @@ export function LiveTicker() {
   const [flashSeq, setFlashSeq] = useState(0);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevPriceRef = useRef<number | null>(null);
+  const { getColor } = useTickColors();
   const utcTime = useUtcClock();
   const { offsetMinutes, labelWithCity: localTzLabel } = useSystemTimezone();
   const localTime = useZonedClock(offsetMinutes);
@@ -435,11 +471,14 @@ export function LiveTicker() {
   }, [tick, marketClosed]);
 
   const isUp = tick ? tick.change >= 0 : true;
+  const goldTickDir = tick
+    ? getColor('XAU', tick.price, tick.change >= 0 ? 'up' : 'down')
+    : 'up';
   const priceColor =
-    marketClosed     ? '#758696' :
-    flash === 'up'   ? '#26a69a' :
-    flash === 'down' ? '#ef5350' :
-    isUp             ? '#26a69a' : '#ef5350';
+    marketClosed        ? '#758696' :
+    flash === 'up'      ? '#26a69a' :
+    flash === 'down'    ? '#ef5350' :
+    goldTickDir === 'up' ? '#26a69a' : '#ef5350';
 
   // Overlay live SSE ticks onto the 30s-polled metals data. Any instrument
   // the live feed hasn't resolved yet (or never resolves — unofficial
@@ -460,6 +499,15 @@ export function LiveTicker() {
   const dxy = metalsLive.find(m => m.symbol === 'DXY');
   // Other precious metals (excluding Gold)
   const metalsList = metalsLive.filter(m => m.symbol !== 'XAU' && m.symbol !== 'DXY' && m.price > 0);
+
+  // Per-symbol tick-threshold color (0.001 up / 0.0001 down since last tick)
+  // for every price shown in the header — independent of each symbol's daily
+  // change sign, so a small live move flips the text color right away.
+  const dxyTickDir = dxy ? getColor('DXY', dxy.price, dxy.change >= 0 ? 'up' : 'down') : null;
+  const metalTickDir: Record<string, 'up' | 'down'> = {};
+  for (const m of metalsList) {
+    metalTickDir[m.symbol] = getColor(m.symbol, m.price, m.change >= 0 ? 'up' : 'down');
+  }
 
   return (
     <div className="flex flex-col rounded-lg overflow-hidden border border-[#1a1a2e]" style={{ background: '#0d0d14' }}>
@@ -573,7 +621,7 @@ export function LiveTicker() {
           {metalsList.length > 0 && (
             <div className="hidden xl:flex flex-row gap-6 flex-wrap">
               {metalsList.map(m => (
-                <MetalItem key={m.symbol} metal={m} />
+                <MetalItem key={m.symbol} metal={m} tickDir={metalTickDir[m.symbol]} />
               ))}
             </div>
           )}
@@ -599,7 +647,7 @@ export function LiveTicker() {
               </div>
               <span className={cn(
                 'text-sm font-mono font-semibold',
-                dxy.change >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'
+                dxyTickDir === 'up' ? 'text-[#26a69a]' : 'text-[#ef5350]'
               )}>
                 {dxy.price.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
               </span>
@@ -623,7 +671,7 @@ export function LiveTicker() {
         {(metalsList.length > 0 || (dxy && dxy.price > 0)) && (
           <div className="xl:hidden flex gap-4 px-4 pb-3 flex-wrap">
             {metalsList.map(m => (
-              <MetalItem key={m.symbol} metal={m} compact />
+              <MetalItem key={m.symbol} metal={m} compact tickDir={metalTickDir[m.symbol]} />
             ))}
             {dxy && dxy.price > 0 && (
               <div className="flex flex-col gap-0.5">
@@ -633,7 +681,7 @@ export function LiveTicker() {
                     {dxy.change >= 0 ? '▲' : '▼'}{Math.abs(dxy.changePct).toFixed(2)}%
                   </span>
                 </div>
-                <span className={cn('text-sm font-mono font-semibold', dxy.change >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
+                <span className={cn('text-sm font-mono font-semibold', dxyTickDir === 'up' ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
                   {dxy.price.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                 </span>
               </div>
@@ -678,8 +726,9 @@ function StatItem({ label, value, positive, negative }: {
   );
 }
 
-function MetalItem({ metal, compact }: { metal: MetalQuote; compact?: boolean }) {
+function MetalItem({ metal, compact, tickDir }: { metal: MetalQuote; compact?: boolean; tickDir?: 'up' | 'down' }) {
   const isUp = metal.change >= 0;
+  const priceUp = tickDir ? tickDir === 'up' : isUp;
   return (
     <div className={cn('flex flex-col gap-0.5', compact ? '' : '')}>
       <div className="flex items-center gap-1.5">
@@ -690,7 +739,7 @@ function MetalItem({ metal, compact }: { metal: MetalQuote; compact?: boolean })
           {isUp ? '▲' : '▼'}{Math.abs(metal.changePct).toFixed(2)}%
         </span>
       </div>
-      <span className={cn('text-sm font-mono font-semibold', isUp ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
+      <span className={cn('text-sm font-mono font-semibold', priceUp ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
         {metal.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </span>
     </div>
