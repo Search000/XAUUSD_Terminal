@@ -29,7 +29,7 @@ services:
       - key: SESSION_SECRET
         sync: false          # REQUIRED — derives the chat message encryption key. Server refuses to start in production without this set. Generate e.g. `openssl rand -hex 32`.
       - key: ALLOWED_ORIGINS
-        sync: false          # REQUIRED in production — comma-separated list of frontend origins allowed for CORS, e.g. https://xauusd-terminal-journal.onrender.com,https://<admin-panel-domain>
+        sync: false          # REQUIRED in production — comma-separated list of frontend origins allowed for CORS, e.g. https://xauusd-terminal-journal.onrender.com,https://xauusd-terminal-admin.onrender.com
 
   # ── Trading Journal Frontend (Static Site) ────────────────────────────────
   - type: web
@@ -50,3 +50,25 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+
+  # ── Admin Panel Frontend (Static Site) ─────────────────────────────────────
+  - type: web
+    name: xauusd-terminal-admin
+    runtime: static
+    region: singapore
+    plan: free
+    buildCommand: >
+      npx --yes pnpm@10.26.1 install --frozen-lockfile &&
+      PORT=3000 BASE_PATH=/ npx --yes pnpm@10.26.1 --filter @workspace/admin-panel run build
+    staticPublishPath: artifacts/admin-panel/dist/public
+    envVars:
+      - key: VITE_API_URL
+        sync: false          # same API server URL as the journal frontend
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    # Remember to add this service's URL to the API's ALLOWED_ORIGINS env var,
+    # and to ADMIN_EMAILS for whichever account(s) should have admin access.

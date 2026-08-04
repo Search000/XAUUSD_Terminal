@@ -123,8 +123,16 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   const status = (err as { status?: number; statusCode?: number })?.status
     ?? (err as { status?: number; statusCode?: number })?.statusCode
     ?? 500;
-  const message = (err as { message?: string })?.message ?? "Internal server error";
   req.log?.error({ err }, "Unhandled error");
+  // For 5xx (unexpected) errors, never echo the raw error message back to
+  // the client — it can leak internal details (DB hosts, stack traces,
+  // third-party API errors). The real message still goes to the server log
+  // above. Routes that intentionally return 4xx already send their own safe
+  // message directly via res.status().json(), so this only affects the
+  // "something unexpected broke" path.
+  const message = status < 500
+    ? ((err as { message?: string })?.message ?? "Request failed")
+    : "Internal server error";
   res.status(status).json({ error: message });
 });
 

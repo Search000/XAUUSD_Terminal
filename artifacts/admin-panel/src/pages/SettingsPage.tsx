@@ -57,7 +57,7 @@ function ToggleRow({
   children,
 }: {
   title: string;
-  description: string;
+  description: React.ReactNode;
   checked: boolean;
   onToggle: () => void;
   disabled: boolean;
@@ -71,10 +71,7 @@ function ToggleRow({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-semibold text-base">{title}</h2>
-          <p
-            className="text-sm text-muted-foreground mt-1"
-            dangerouslySetInnerHTML={{ __html: description }}
-          />
+          <p className="text-sm text-muted-foreground mt-1">{description}</p>
         </div>
         <button
           disabled={disabled}
@@ -360,7 +357,13 @@ export function SettingsPage() {
       {/* License Enforcement */}
       <ToggleRow
         title="License Enforcement"
-        description="When <strong>ON</strong>, all users must have a valid active license to access the terminal.<br />When <strong>OFF</strong>, license checks are bypassed globally — everyone can log in."
+        description={
+          <>
+            When <strong>ON</strong>, all users must have a valid active license to access the terminal.
+            <br />
+            When <strong>OFF</strong>, license checks are bypassed globally — everyone can log in.
+          </>
+        }
         checked={data?.licenseEnforcementEnabled ?? true}
         onToggle={toggleLicenseEnforcement}
         disabled={disabled}
@@ -375,7 +378,13 @@ export function SettingsPage() {
       {/* Trial Mode */}
       <ToggleRow
         title="Free Trial Mode"
-        description="When <strong>ON</strong>, any user can self-activate a free trial directly from the app — no admin approval needed. Each user can only activate one trial.<br />When <strong>OFF</strong>, trial activation is blocked for all users."
+        description={
+          <>
+            When <strong>ON</strong>, any user can self-activate a free trial directly from the app — no admin approval needed. Each user can only activate one trial.
+            <br />
+            When <strong>OFF</strong>, trial activation is blocked for all users.
+          </>
+        }
         checked={data?.trialModeEnabled ?? false}
         onToggle={toggleTrialMode}
         disabled={disabled}

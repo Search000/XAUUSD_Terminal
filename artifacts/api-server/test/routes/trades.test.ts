@@ -127,4 +127,16 @@ describe("/api/trades", () => {
     expect(res.status).toBe(201);
     expect(res.body.userId).toBe("owner_4");
   });
+
+  it("hides internal error details from the client on an unexpected 5xx (e.g. a DB failure)", async () => {
+    setAuthedUser("owner_5");
+    queueLicenseAllowed();
+    mockDb.rejectNext(new Error("connect ECONNREFUSED 10.1.4.22:5432 — internal db host"));
+
+    const res = await request(app).get("/api/trades");
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: "Internal server error" });
+    expect(JSON.stringify(res.body)).not.toContain("10.1.4.22");
+  });
 });
