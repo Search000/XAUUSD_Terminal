@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { logger } from "../lib/logger";
-import { liveGoldFeed, isGoldMarketOpen, type LiveMetalTick, type MetalSymbol } from "../lib/liveGoldFeed";
+import { liveGoldFeed, LiveGoldFeed, type LiveMetalTick, type MetalSymbol } from "../lib/liveGoldFeed";
 
 const router = Router();
 
@@ -174,7 +174,7 @@ router.get("/xauusd/price", async (req, res) => {
       low24h: meta.regularMarketDayLow ?? price,
       open24h: prev ?? price,
       timestamp: meta.regularMarketTime ?? Date.now() / 1000,
-      marketOpen: isGoldMarketOpen(),
+      marketOpen: LiveGoldFeed.isEffectivelyOpen(liveGoldFeed.getLatest()),
     });
   } catch (err) {
     logger.error({ err }, "Failed to fetch XAUUSD price");
@@ -232,7 +232,7 @@ router.get("/xauusd/live-price", (req: Request, res: Response) => {
   // send whatever we already have immediately — new viewers don't wait
   const cached = liveGoldFeed.getLatest();
   if (cached) {
-    res.write(`data: ${JSON.stringify({ ...cached, marketOpen: isGoldMarketOpen() })}\n\n`);
+    res.write(`data: ${JSON.stringify({ ...cached, marketOpen: LiveGoldFeed.isEffectivelyOpen(cached) })}\n\n`);
     (res as any).flush?.();
   }
 
@@ -262,7 +262,7 @@ router.get("/xauusd/live-metals", (req: Request, res: Response) => {
     if (sym === "XAU") continue;
     const tick = all[sym];
     if (!tick) continue;
-    res.write(`data: ${JSON.stringify({ ...tick, marketOpen: isGoldMarketOpen() })}\n\n`);
+    res.write(`data: ${JSON.stringify({ ...tick, marketOpen: LiveGoldFeed.isEffectivelyOpen(tick) })}\n\n`);
   }
   (res as any).flush?.();
 

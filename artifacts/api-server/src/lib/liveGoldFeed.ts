@@ -72,7 +72,7 @@ export function isGoldMarketOpen(d: Date = new Date()): boolean {
   return true;
 }
 
-class LiveGoldFeed extends EventEmitter {
+export class LiveGoldFeed extends EventEmitter {
   private ws: WebSocket | null = null;
   private sessionId = "cs_" + Math.random().toString(36).slice(2, 15);
   private latest: Partial<Record<MetalSymbol, LiveMetalTick>> = {};
@@ -102,6 +102,27 @@ class LiveGoldFeed extends EventEmitter {
 
   private statusTimer: NodeJS.Timeout | null = null;
 
+  // COMEX gold pauses for a daily ~1h maintenance window (roughly
+  // 21:00-22:00 UTC, Sun-Thu) on top of the full weekend close, and the
+  // feed itself can occasionally hiccup — isGoldMarketOpen() alone only
+  // knows about the weekly close, so during a daily halt it would keep
+  // claiming "open" (and the UI would keep showing "LIVE") even though no
+  // tick has arrived in minutes. 3 minutes of silence is long enough to
+  // never false-flag a normal quiet stretch between real ticks, but far
+  // shorter than an actual ~1h halt, so the badge flips to "MARKET CLOSED"
+  // quickly and flips back the moment a fresh tick resumes.
+  private static readonly STALE_MS = 3 * 60_000;
+
+  // Same "calendar open AND feed not stale" check used by the periodic
+  // broadcast below, exposed so a freshly-connecting SSE client (which
+  // sends the cached tick immediately, before the next broadcast tick)
+  // reports the same accurate open/closed state instead of falling back to
+  // the raw weekly calendar.
+  static isEffectivelyOpen(tick: Pick<LiveGoldTick, "timestamp"> | null | undefined): boolean {
+    if (!tick) return isGoldMarketOpen();
+    return isGoldMarketOpen() && Date.now() - tick.timestamp <= LiveGoldFeed.STALE_MS;
+  }
+
   // Re-emits every instrument's last known price (unchanged) with a
   // refreshed marketOpen flag every 30s. Real ticks stop arriving over the
   // weekend, so without this, clients only learn the market re/closed on
@@ -109,11 +130,12 @@ class LiveGoldFeed extends EventEmitter {
   // near real-time while never mutating the frozen price itself.
   private startStatusBroadcast() {
     this.statusTimer = setInterval(() => {
-      const nowOpen = isGoldMarketOpen();
       for (const sym of Object.keys(this.latest) as MetalSymbol[]) {
         const cur = this.latest[sym];
-        if (!cur || cur.marketOpen === nowOpen) continue; // no state change, skip noise
-        this.latest[sym] = { ...cur, marketOpen: nowOpen };
+        if (!cur) continue;
+        const effectiveOpen = LiveGoldFeed.isEffectivelyOpen(cur);
+        if (cur.marketOpen === effectiveOpen) continue; // no state change, skip noise
+        this.latest[sym] = { ...cur, marketOpen: effectiveOpen };
         this.emit("tick", this.latest[sym]);
       }
     }, 30_000).unref();
