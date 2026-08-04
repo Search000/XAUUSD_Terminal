@@ -68,9 +68,14 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
           if (id.includes('@clerk')) return 'vendor-clerk';
-          if (id.includes('/react-dom/') || id.includes('/react/') || id.includes('scheduler')) {
-            return 'vendor-react';
-          }
+          // NOTE: react/react-dom/scheduler must NOT be split into their own
+          // chunk. Other deps (@radix-ui/*, @tanstack/react-query, etc.)
+          // call React.createContext() at module init time and land in the
+          // generic 'vendor' chunk. If React is isolated in a separate
+          // 'vendor-react' chunk, load order between the two chunks is not
+          // guaranteed, so 'vendor' can execute before 'vendor-react' and
+          // crash with "Cannot read properties of undefined (reading
+          // 'createContext')". Keeping React with its consumers avoids this.
           return 'vendor';
         },
       },
