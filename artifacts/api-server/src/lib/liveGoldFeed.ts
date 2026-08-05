@@ -76,6 +76,11 @@ export class LiveGoldFeed extends EventEmitter {
   private ws: WebSocket | null = null;
   private sessionId = "cs_" + Math.random().toString(36).slice(2, 15);
   private latest: Partial<Record<MetalSymbol, LiveMetalTick>> = {};
+  // When each symbol's traded PRICE last actually changed value (not just
+  // when a quote packet arrived — TradingView can keep sending bid/ask/spread
+  // refreshes with the same last-traded price for a while, which would
+  // otherwise keep resetting the staleness clock and never flip to closed).
+  private lastPriceChangeAt: Partial<Record<MetalSymbol, number>> = {};
   private reconnectAttempts = 0;
   private heartbeat: NodeJS.Timeout | null = null;
   private started = false;
@@ -113,14 +118,20 @@ export class LiveGoldFeed extends EventEmitter {
   // quickly and flips back the moment a fresh tick resumes.
   private static readonly STALE_MS = 2 * 60_000;
 
-  // Same "calendar open AND feed not stale" check used by the periodic
-  // broadcast below, exposed so a freshly-connecting SSE client (which
-  // sends the cached tick immediately, before the next broadcast tick)
+  // Same "calendar open AND price hasn't been frozen too long" check used by
+  // the periodic broadcast below, exposed so a freshly-connecting SSE client
+  // (which sends the cached tick immediately, before the next broadcast tick)
   // reports the same accurate open/closed state instead of falling back to
   // the raw weekly calendar.
-  static isEffectivelyOpen(tick: Pick<LiveGoldTick, "timestamp"> | null | undefined): boolean {
+  //
+  // Freshness is measured from when the PRICE last actually moved, not from
+  // when the last quote packet arrived — a quiet/frozen price for 2+ minutes
+  // means closed even if the feed keeps sending unchanged-price packets.
+  isEffectivelyOpen(tick: (Pick<LiveGoldTick, "timestamp"> & { sym?: MetalSymbol }) | null | undefined): boolean {
     if (!tick) return isGoldMarketOpen();
-    return isGoldMarketOpen() && Date.now() - tick.timestamp <= LiveGoldFeed.STALE_MS;
+    const sym = tick.sym ?? "XAU";
+    const since = this.lastPriceChangeAt[sym] ?? tick.timestamp;
+    return isGoldMarketOpen() && Date.now() - since <= LiveGoldFeed.STALE_MS;
   }
 
   // Re-emits every instrument's last known price (unchanged) with a
@@ -133,7 +144,7 @@ export class LiveGoldFeed extends EventEmitter {
       for (const sym of Object.keys(this.latest) as MetalSymbol[]) {
         const cur = this.latest[sym];
         if (!cur) continue;
-        const effectiveOpen = LiveGoldFeed.isEffectivelyOpen(cur);
+        const effectiveOpen = this.isEffectivelyOpen(cur);
         if (cur.marketOpen === effectiveOpen) continue; // no state change, skip noise
         this.latest[sym] = { ...cur, marketOpen: effectiveOpen };
         this.emit("tick", this.latest[sym]);
@@ -239,6 +250,9 @@ export class LiveGoldFeed extends EventEmitter {
           // differences).
           const existing = this.latest[canonical];
           if (existing && existing.symbol !== rawSymbol) continue;
+
+          const priceChanged = !existing || existing.price !== v.lp;
+          if (priceChanged) this.lastPriceChangeAt[canonical] = Date.now();
 
           const tick: LiveMetalTick = {
             sym: canonical,

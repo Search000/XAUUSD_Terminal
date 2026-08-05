@@ -174,7 +174,7 @@ router.get("/xauusd/price", async (req, res) => {
       low24h: meta.regularMarketDayLow ?? price,
       open24h: prev ?? price,
       timestamp: meta.regularMarketTime ?? Date.now() / 1000,
-      marketOpen: LiveGoldFeed.isEffectivelyOpen(liveGoldFeed.getLatest()),
+      marketOpen: liveGoldFeed.isEffectivelyOpen(liveGoldFeed.getLatest()),
     });
   } catch (err) {
     logger.error({ err }, "Failed to fetch XAUUSD price");
@@ -197,7 +197,7 @@ liveGoldFeed.on("tick", (tick: LiveMetalTick) => {
     // when it was emitted) so a stale feed always reports CLOSED to clients,
     // even if this particular tick event fired for an unrelated reason.
     const { sym, ...goldTick } = tick;
-    const payload = `data: ${JSON.stringify({ ...goldTick, marketOpen: LiveGoldFeed.isEffectivelyOpen(tick) })}\n\n`;
+    const payload = `data: ${JSON.stringify({ ...goldTick, marketOpen: liveGoldFeed.isEffectivelyOpen(tick) })}\n\n`;
     for (const res of liveBroadcastClients) {
       try {
         res.write(payload);
@@ -209,7 +209,7 @@ liveGoldFeed.on("tick", (tick: LiveMetalTick) => {
     return;
   }
 
-  const payload = `data: ${JSON.stringify({ ...tick, marketOpen: LiveGoldFeed.isEffectivelyOpen(tick) })}\n\n`;
+  const payload = `data: ${JSON.stringify({ ...tick, marketOpen: liveGoldFeed.isEffectivelyOpen(tick) })}\n\n`;
   for (const res of liveMetalsBroadcastClients) {
     try {
       res.write(payload);
@@ -235,7 +235,7 @@ router.get("/xauusd/live-price", (req: Request, res: Response) => {
   // send whatever we already have immediately — new viewers don't wait
   const cached = liveGoldFeed.getLatest();
   if (cached) {
-    res.write(`data: ${JSON.stringify({ ...cached, marketOpen: LiveGoldFeed.isEffectivelyOpen(cached) })}\n\n`);
+    res.write(`data: ${JSON.stringify({ ...cached, marketOpen: liveGoldFeed.isEffectivelyOpen(cached) })}\n\n`);
     (res as any).flush?.();
   }
 
@@ -265,7 +265,7 @@ router.get("/xauusd/live-metals", (req: Request, res: Response) => {
     if (sym === "XAU") continue;
     const tick = all[sym];
     if (!tick) continue;
-    res.write(`data: ${JSON.stringify({ ...tick, marketOpen: LiveGoldFeed.isEffectivelyOpen(tick) })}\n\n`);
+    res.write(`data: ${JSON.stringify({ ...tick, marketOpen: liveGoldFeed.isEffectivelyOpen(tick) })}\n\n`);
   }
   (res as any).flush?.();
 
