@@ -23,6 +23,8 @@ import { FuturesCurvePanel } from '@/components/xauusd/FuturesCurvePanel';
 import { CotHistoryPanel } from '@/components/xauusd/CotHistoryPanel';
 import { GoldSilverRatioPanel } from '@/components/xauusd/GoldSilverRatioPanel';
 import { VixPanel } from '@/components/xauusd/VixPanel';
+import { VarStressPanel } from '@/components/xauusd/VarStressPanel';
+import { OptionsFlowPanel } from '@/components/xauusd/OptionsFlowPanel';
 
 /**
  * Panels are mounted in 4 progressive batches to avoid firing 20+ API
@@ -114,12 +116,23 @@ export function XauusdMonitorPage() {
                 </div>
               )}
 
-              {batch >= 4 && <CotHistoryPanel />}
+              {batch >= 4 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <CotHistoryPanel />
+                  <VarStressPanel />
+                </div>
+              )}
 
               {batch >= 4 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <CentralBankHoldings />
                   <MiningStocks />
+                </div>
+              )}
+
+              {batch >= 4 && (
+                <div style={{ minHeight: 320 }}>
+                  <OptionsFlowPanel />
                 </div>
               )}
 
