@@ -193,8 +193,11 @@ const liveMetalsBroadcastClients = new Set<Response>();
 liveGoldFeed.on("tick", (tick: LiveMetalTick) => {
   if (tick.sym === "XAU") {
     // Back-compat shape for existing /live-price consumers (no `sym` field).
+    // Recompute freshness at SEND time (not whatever was baked into the tick
+    // when it was emitted) so a stale feed always reports CLOSED to clients,
+    // even if this particular tick event fired for an unrelated reason.
     const { sym, ...goldTick } = tick;
-    const payload = `data: ${JSON.stringify(goldTick)}\n\n`;
+    const payload = `data: ${JSON.stringify({ ...goldTick, marketOpen: LiveGoldFeed.isEffectivelyOpen(tick) })}\n\n`;
     for (const res of liveBroadcastClients) {
       try {
         res.write(payload);
@@ -206,7 +209,7 @@ liveGoldFeed.on("tick", (tick: LiveMetalTick) => {
     return;
   }
 
-  const payload = `data: ${JSON.stringify(tick)}\n\n`;
+  const payload = `data: ${JSON.stringify({ ...tick, marketOpen: LiveGoldFeed.isEffectivelyOpen(tick) })}\n\n`;
   for (const res of liveMetalsBroadcastClients) {
     try {
       res.write(payload);

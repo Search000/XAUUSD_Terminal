@@ -111,7 +111,7 @@ export class LiveGoldFeed extends EventEmitter {
   // never false-flag a normal quiet stretch between real ticks, but far
   // shorter than an actual ~1h halt, so the badge flips to "MARKET CLOSED"
   // quickly and flips back the moment a fresh tick resumes.
-  private static readonly STALE_MS = 3 * 60_000;
+  private static readonly STALE_MS = 2 * 60_000;
 
   // Same "calendar open AND feed not stale" check used by the periodic
   // broadcast below, exposed so a freshly-connecting SSE client (which
@@ -138,7 +138,7 @@ export class LiveGoldFeed extends EventEmitter {
         this.latest[sym] = { ...cur, marketOpen: effectiveOpen };
         this.emit("tick", this.latest[sym]);
       }
-    }, 30_000).unref();
+    }, 15_000).unref();
   }
 
   private connect() {
