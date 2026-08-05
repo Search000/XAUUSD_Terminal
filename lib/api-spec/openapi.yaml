@@ -1754,6 +1754,10 @@ components:
         lossThresholdPct:
           type: number
           description: "Send loss alert when drawdown >= this % (default 6)"
+        notifyLanguage:
+          type: string
+          enum: [en, bn]
+          description: "Telegram notification text language: 'en' (pure English) or 'bn' (current Bengali-mixed templates, default)"
 
     TelegramSettingsInput:
       type: object
@@ -1776,6 +1780,9 @@ components:
           type: number
         lossThresholdPct:
           type: number
+        notifyLanguage:
+          type: string
+          enum: [en, bn]
 
     AccountSettings:
       type: object

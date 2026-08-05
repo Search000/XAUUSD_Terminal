@@ -36,6 +36,7 @@ const telegramSchema = z.object({
   riskAlertEnabled: z.boolean(),
   winThresholdPct: z.coerce.number(),
   lossThresholdPct: z.coerce.number(),
+  notifyLanguage: z.enum(["en", "bn"]),
 });
 
 const passwordSchema = z.object({
@@ -240,7 +241,7 @@ export default function SettingsPage() {
     defaultValues: { 
       botToken: "", chatId: "", groupId: "", 
       dailyEnabled: false, weeklyEnabled: false, monthlyEnabled: false, riskAlertEnabled: false,
-      winThresholdPct: 10, lossThresholdPct: 6
+      winThresholdPct: 10, lossThresholdPct: 6, notifyLanguage: "bn"
     }
   });
 
@@ -271,6 +272,7 @@ export default function SettingsPage() {
         riskAlertEnabled: tgSettings.riskAlertEnabled || false,
         winThresholdPct: tgSettings.winThresholdPct || 10,
         lossThresholdPct: tgSettings.lossThresholdPct || 6,
+        notifyLanguage: (tgSettings.notifyLanguage as "en" | "bn") || "bn",
       });
       tgInit.current = true;
     }
@@ -385,6 +387,18 @@ export default function SettingsPage() {
                         <FormItem>
                           <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Investor Group ID</FormLabel>
                           <FormControl><Input placeholder="-100123456789" className="font-mono bg-input" {...field} /></FormControl>
+                        </FormItem>
+                      )} />
+                      <FormField control={tgForm.control} name="notifyLanguage" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Notification Language</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl><SelectTrigger className="font-mono bg-input"><SelectValue /></SelectTrigger></FormControl>
+                            <SelectContent>
+                              <SelectItem value="bn">Bangla (বাংলা)</SelectItem>
+                              <SelectItem value="en">English</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </FormItem>
                       )} />
                     </div>

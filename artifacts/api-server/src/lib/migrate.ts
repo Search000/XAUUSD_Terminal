@@ -229,6 +229,7 @@ export async function runMigrations(): Promise<void> {
     // Existing admins (is_admin = true) are migrated to role = 'admin' once.
     await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
+      ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS notify_language TEXT NOT NULL DEFAULT 'bn';
       UPDATE users SET role = 'admin' WHERE is_admin = TRUE AND role = 'user';
     `);
         logger.info("Migrations complete");

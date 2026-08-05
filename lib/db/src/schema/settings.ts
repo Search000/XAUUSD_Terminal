@@ -17,6 +17,8 @@ export const telegramSettingsTable = pgTable("telegram_settings", {
   riskAlertEnabled: boolean("risk_alert_enabled").notNull().default(false),
   winThresholdPct: numeric("win_threshold_pct", { precision: 5, scale: 2 }).default("10"),
   lossThresholdPct: numeric("loss_threshold_pct", { precision: 5, scale: 2 }).default("6"),
+  /** Language for Telegram notification text: 'en' (pure English) or 'bn' (current Bengali-mixed templates, default). */
+  notifyLanguage: text("notify_language").notNull().default("bn"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

@@ -192,97 +192,130 @@ function buildMonthlyBox(opts: {
 }
 
 // ── Templates (Risk Alert + Off Day only) ────────────────────────────────────
+// Each entry has a Bengali-mixed version (current/default, 'bn') and a pure
+// English version ('en'). Structure/frame stays identical either way.
 
-function getWinTemplates(s: string, e: string, p: string): string[] {
-  return [
-    `╔════════════════════╗\n     STATUS: TARGET HIT ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ প্রফিট এনজয় করুন এবং অ্যাপটি ক্লোজ করুন।\n➤ ADVICE:\n   ▸ Congratulations! আপনার ডিসিপ্লিন আজ আপনাকে জয়ী করেছে।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: MISSION SUCCESS ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ পিসি অফ করে পরিবারের সাথে সময় কাটান।\n➤ ADVICE:\n   ▸ Excellent! গোল্ড মার্কেটে আজ আপনি একজন বিজয়ী।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PROFIT SECURED ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ রি-এন্ট্রি থেকে বিরত থাকুন। প্রফিট লক করুন।\n➤ ADVICE:\n   ▸ Patience is Power. আজ ধৈর্য আপনাকে পুরস্কার দিয়েছে।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: GOAL ACHIEVED ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ ট্রেডিং স্টেশনের পরিবর্তে রিল্যাক্স করুন।\n➤ ADVICE:\n   ▸ Consistency is Key. আজ আপনি সঠিক ডিসিপ্লিন দেখিয়েছেন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: GOLD MASTERED ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ মার্কেট থেকে বিদায় নিন। কাল ফ্রেশ শুরু হবে।\n➤ ADVICE:\n   ▸ You handled the volatility like a pro. সাবাস!\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: WINNING DAY ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ দিনটি হাসি মুখে শেষ করুন।\n➤ ADVICE:\n   ▸ Small wins lead to big success. চালিয়ে যান।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: BULLSEYE ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজ আর কোনো বাই বা সেল এন্ট্রি নয়।\n➤ ADVICE:\n   ▸ Your analysis was spot on today. চমৎকার এন্ট্রি।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: SMART WINNER ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ ব্যালেন্সের গ্রোথ এনজয় করুন।\n➤ ADVICE:\n   ▸ Logical trading wins over greed. লোভকে হারালেন আপনি।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: TOP PERFORMER ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজ আপনি একজন প্রফেশনাল। ক্লোজ করুন।\n➤ ADVICE:\n   ▸ Keep this focus for the next session. চমৎকার!\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PROFIT LOCKED ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ লাভজনক সেশনটি এখন ক্লোজ করুন।\n➤ ADVICE:\n   ▸ Success looks good on you. দিনটি আপনার।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: BRAVO TRADER ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজকের লক্ষ্য পূরণ হয়েছে। বিরতি নিন।\n➤ ADVICE:\n   ▸ Discipline is doing what needs to be done. সাবাস!\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PERFECT TRADE ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ দিন শেষে এনালাইসিসটি ডায়েরিতে নোট করুন।\n➤ ADVICE:\n   ▸ You nailed it! আপনার স্ট্র্যাটেজি নিখুঁত ছিল।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: MARKET CONQUERED ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আর চার্ট দেখতে হবে না। রিল্যাক্স।\n➤ ADVICE:\n   ▸ Confidence is built on consistency. দারুণ কাজ।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: VICTORY REPORT ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজ আর কোনো ট্রেড নয়। দিনটি আপনার।\n➤ ADVICE:\n   ▸ Trust the process. আজ আপনিই বিজয়ী।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: GOLD HUNTER ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ গোল্ড থেকে লাভ বের করেছেন, এখন সরুন।\n➤ ADVICE:\n   ▸ Extracted profit successfully. চমৎকার দক্ষতা!\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: SESSION ENDED ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ কালকের জন্য এনার্জি সেভ করুন।\n➤ ADVICE:\n   ▸ Steady growth is sustainable growth. ভালো করেছেন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: UNSTOPPABLE ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ নিয়ম মেনেই সেশনটি শেষ করুন।\n➤ ADVICE:\n   ▸ Winners follow rules. আপনি আজ বিজয়ী।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PROFIT RUNNER ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজকের অর্জন ধরে রাখতে এখন বের হন।\n➤ ADVICE:\n   ▸ Greed ends when goal begins. সাবাস!\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: SMART GAIN ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ নিজের জন্য কিছু সময় দিন। সেশন ক্লোজ।\n➤ ADVICE:\n   ▸ Trading is 10% skill, 90% patience. জিতলেন আজ।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: MASTER MOVE ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজকের সেশন আর না বাড়ানোই ভালো।\n➤ ADVICE:\n   ▸ You outplayed the market. দারুণ মুভ!\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: GOLD WINNER ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ টার্মিনাল লগ-আউট করে দিন।\n➤ ADVICE:\n   ▸ Stick to the plan. This is the result. সাবাস!\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PROFIT MASTER ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ মার্কেট থেকে আপনার অংশ নিয়ে নিয়েছেন। সরুন।\n➤ ADVICE:\n   ▸ Patience pays off well. অভিনন্দন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: SUCCESSFUL RUN ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ দিনটি হাসিমুখে শেষ করুন।\n➤ ADVICE:\n   ▸ You are doing great. Keep it up. অভিনন্দন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: GOAL REACHED ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আর কোনো রিস্ক নেওয়ার প্রয়োজন নেই।\n➤ ADVICE:\n   ▸ Discipline is your true asset. সাবাস!\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PROFIT TAKEN ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজকের সেশন এখানেই সমাপ্ত।\n➤ ADVICE:\n   ▸ Win with grace. কাল আবার দেখা হবে।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: CHAMPION SESSION ✅\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজকের বিজয়ী আপনিই। বিশ্রাম নিন।\n➤ ADVICE:\n   ▸ You followed every rule. Well done. সাবাস!\n━━━━━━━━━━━━━━━━━━━━━`,
-  ];
+type Lang = "en" | "bn";
+
+interface StatusItem {
+  status: string;
+  actionBn: string;
+  adviceBn: string;
+  actionEn: string;
+  adviceEn: string;
 }
 
-function getLossTemplates(s: string, e: string, p: string): string[] {
-  return [
-    `╔════════════════════╗\n     STATUS: TRADING SUSPENDED ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ ট্রেডিং স্টেশনের পরিবর্তে পরিবারের সাথে সময় কাটান।\n➤ ADVICE:\n   ▸ Market is Always Right. মার্কেটকে দোষ না দিয়ে নিজের ভুল খুঁজুন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: CAPITAL GUARD ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ রিভেঞ্জ ট্রেড করবেন না। টার্মিনাল অফ করুন।\n➤ ADVICE:\n   ▸ Protecting equity is your #1 job. আজ থেমে যাওয়াই বুদ্ধিমান।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: STOP LOSS HIT ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ মার্কেট থেকে দূরে থাকুন। কাল ফ্রেশ শুরু হবে।\n➤ ADVICE:\n   ▸ SL hit means you are safe from a bigger crash. মেনে নিন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: RISK ALERT ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ চার্ট দেখা বন্ধ দিন। অন্য কাজে মন দিন।\n➤ ADVICE:\n   ▸ Save capital today to trade tomorrow. টিকে থাকাই আসল।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PROTECTION ON ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজ আপনার দিন নয়। বিরতি নিন।\n➤ ADVICE:\n   ▸ 6% loss is better than a blown account. একাউন্ট বাঁচান।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PAUSE SESSION ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ রিকাভারি করার চেষ্টা করবেন না।\n➤ ADVICE:\n   ▸ Don't overthink. লস ট্রেডিং বিজনেসের অংশ।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: DISCIPLINE CHECK ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ ল্যাপটপ বন্ধ করে স্টেশনের বাইরে যান।\n➤ ADVICE:\n   ▸ Walk away from the charts now. নিয়ন্ত্রণ হারাবেন না।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: MARKET VOLATILE ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ গোল্ড আজ বিপজ্জনক। নিরাপদ থাকাই ভালো।\n➤ ADVICE:\n   ▸ Market is wild today. ধৈর্য ধরুন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: RETREAT NOW ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজকের সেশন এখানেই সমাপ্ত।\n➤ ADVICE:\n   ▸ Tactical retreat for a better comeback. কাল সুযোগ আসবে।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: SYSTEM SHUTDOWN ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজ আর কোনো বাই-সেল এন্ট্রি নয়।\n➤ ADVICE:\n   ▸ Risk quota is finished. নিয়মই বড় ট্রেডার বানাবে।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: TAKE A BREAK ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ বাইরে হাঁটতে যান বা গান শুনুন।\n➤ ADVICE:\n   ▸ Go outside. ট্রেডিং থেকে মন সরিয়ে নিন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: RECOVERY BAN ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ লস রিকাভারি করতে গিয়ে লস বাড়াবেন না।\n➤ ADVICE:\n   ▸ Recovery trades usually double the loss. থামুন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: TRADING HALTED ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ ব্রেক নিন। নিয়মের বাইরে যাবেন না।\n➤ ADVICE:\n   ▸ Don't break your rules. আজ থামাটাই নিয়ম।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: BE PROFESSIONAL ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ একজন প্রফেশনাল হিসেবে লস স্বীকার করুন।\n➤ ADVICE:\n   ▸ Pros stop when the limit hits. আপনি আজ প্রফেশনাল।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: ANALYSIS FAILED ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ মার্কেট আজ আপনার বিপক্ষে।\n➤ ADVICE:\n   ▸ Market changed, don't force it. কাল আবার সুযোগ পাবেন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: EXIT MARKET ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আর কোনো সেটআপ খুঁজতে যাবেন না।\n➤ ADVICE:\n   ▸ No setups left for today. Leave. নিজেকে শান্ত রাখুন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: SAVE YOURSELF ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজ সেশন বন্ধ রাখাই সবথেকে বড় জয়।\n➤ ADVICE:\n   ▸ Save your psychology for tomorrow. ফিরে আসবেন কাল।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: LIMIT REACHED ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজকের কোটা শেষ। আর ট্রেড নয়।\n➤ ADVICE:\n   ▸ Discipline pays more than luck. কাল আপনি জিতবেন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: STOP LOSS HIT ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ এসএল লেগেছে মানে মার্কেট খারাপ। থামুন।\n➤ ADVICE:\n   ▸ SL is a protection, not a failure. ভালো করেছেন।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: RE-EVALUATE ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ কাল সকালে ভুলগুলো নিয়ে অ্যানালাইসিস করবেন।\n➤ ADVICE:\n   ▸ Note the mistakes, but don't trade now. রিল্যাক্স।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: PEACE OF MIND ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ সেশনটি অফ করে মনে প্রশান্তি আনুন।\n➤ ADVICE:\n   ▸ Close trades for peace of mind. মানসিক স্বাস্থ্য জরুরি।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: DON'T OVERTRADE ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ লস হয়েছে বলে বারবার ট্রেড দেবেন না।\n➤ ADVICE:\n   ▸ You have time to recover later. তাড়াহুড়ো করবেন না।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: MARKET WINS ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ আজ মার্কেটকে তার পাওনা দিয়ে দিন।\n➤ ADVICE:\n   ▸ Let the market win today. You win tomorrow. চ্যাম্পিয়নরা থামে।\n━━━━━━━━━━━━━━━━━━━━━`,
-    `╔════════════════════╗\n     STATUS: FINAL WARNING ⚠️\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ একদমই আর কোনো ট্রেড নয়। স্টপ।\n➤ ADVICE:\n   ▸ Absolute stop. Do not enter any trade! মূলধন বাঁচান।\n━━━━━━━━━━━━━━━━━━━━━`,
-  ];
+const WIN_ITEMS: StatusItem[] = [
+  { status: "TARGET HIT", actionBn: "প্রফিট এনজয় করুন এবং অ্যাপটি ক্লোজ করুন।", adviceBn: "Congratulations! আপনার ডিসিপ্লিন আজ আপনাকে জয়ী করেছে।", actionEn: "Enjoy the profit and close the app.", adviceEn: "Congratulations! Your discipline made you a winner today." },
+  { status: "MISSION SUCCESS", actionBn: "পিসি অফ করে পরিবারের সাথে সময় কাটান।", adviceBn: "Excellent! গোল্ড মার্কেটে আজ আপনি একজন বিজয়ী।", actionEn: "Turn off the PC and spend time with family.", adviceEn: "Excellent! You're a winner in the gold market today." },
+  { status: "PROFIT SECURED", actionBn: "রি-এন্ট্রি থেকে বিরত থাকুন। প্রফিট লক করুন।", adviceBn: "Patience is Power. আজ ধৈর্য আপনাকে পুরস্কার দিয়েছে।", actionEn: "Avoid re-entry. Lock in the profit.", adviceEn: "Patience is Power. Your patience paid off today." },
+  { status: "GOAL ACHIEVED", actionBn: "ট্রেডিং স্টেশনের পরিবর্তে রিল্যাক্স করুন।", adviceBn: "Consistency is Key. আজ আপনি সঠিক ডিসিপ্লিন দেখিয়েছেন।", actionEn: "Relax instead of staying at the trading station.", adviceEn: "Consistency is Key. You showed real discipline today." },
+  { status: "GOLD MASTERED", actionBn: "মার্কেট থেকে বিদায় নিন। কাল ফ্রেশ শুরু হবে।", adviceBn: "You handled the volatility like a pro. সাবাস!", actionEn: "Step away from the market. Tomorrow's a fresh start.", adviceEn: "You handled the volatility like a pro. Well done!" },
+  { status: "WINNING DAY", actionBn: "দিনটি হাসি মুখে শেষ করুন।", adviceBn: "Small wins lead to big success. চালিয়ে যান।", actionEn: "End the day with a smile.", adviceEn: "Small wins lead to big success. Keep going." },
+  { status: "BULLSEYE", actionBn: "আজ আর কোনো বাই বা সেল এন্ট্রি নয়।", adviceBn: "Your analysis was spot on today. চমৎকার এন্ট্রি।", actionEn: "No more buy or sell entries today.", adviceEn: "Your analysis was spot on today. Excellent entry." },
+  { status: "SMART WINNER", actionBn: "ব্যালেন্সের গ্রোথ এনজয় করুন।", adviceBn: "Logical trading wins over greed. লোভকে হারালেন আপনি।", actionEn: "Enjoy the growth in your balance.", adviceEn: "Logical trading wins over greed. You beat greed today." },
+  { status: "TOP PERFORMER", actionBn: "আজ আপনি একজন প্রফেশনাল। ক্লোজ করুন।", adviceBn: "Keep this focus for the next session. চমৎকার!", actionEn: "You're a professional today. Close it out.", adviceEn: "Keep this focus for the next session. Excellent!" },
+  { status: "PROFIT LOCKED", actionBn: "লাভজনক সেশনটি এখন ক্লোজ করুন।", adviceBn: "Success looks good on you. দিনটি আপনার।", actionEn: "Close out this profitable session now.", adviceEn: "Success looks good on you. Today is yours." },
+  { status: "BRAVO TRADER", actionBn: "আজকের লক্ষ্য পূরণ হয়েছে। বিরতি নিন।", adviceBn: "Discipline is doing what needs to be done. সাবাস!", actionEn: "Today's target is met. Take a break.", adviceEn: "Discipline is doing what needs to be done. Well done!" },
+  { status: "PERFECT TRADE", actionBn: "দিন শেষে এনালাইসিসটি ডায়েরিতে নোট করুন।", adviceBn: "You nailed it! আপনার স্ট্র্যাটেজি নিখুঁত ছিল।", actionEn: "Note today's analysis in your journal.", adviceEn: "You nailed it! Your strategy was perfect." },
+  { status: "MARKET CONQUERED", actionBn: "আর চার্ট দেখতে হবে না। রিল্যাক্স।", adviceBn: "Confidence is built on consistency. দারুণ কাজ।", actionEn: "No need to watch the charts anymore. Relax.", adviceEn: "Confidence is built on consistency. Great work." },
+  { status: "VICTORY REPORT", actionBn: "আজ আর কোনো ট্রেড নয়। দিনটি আপনার।", adviceBn: "Trust the process. আজ আপনিই বিজয়ী।", actionEn: "No more trades today. Today is yours.", adviceEn: "Trust the process. You are the winner today." },
+  { status: "GOLD HUNTER", actionBn: "গোল্ড থেকে লাভ বের করেছেন, এখন সরুন।", adviceBn: "Extracted profit successfully. চমৎকার দক্ষতা!", actionEn: "You've extracted profit from gold — now step aside.", adviceEn: "Extracted profit successfully. Excellent skill!" },
+  { status: "SESSION ENDED", actionBn: "কালকের জন্য এনার্জি সেভ করুন।", adviceBn: "Steady growth is sustainable growth. ভালো করেছেন।", actionEn: "Save your energy for tomorrow.", adviceEn: "Steady growth is sustainable growth. Well done." },
+  { status: "UNSTOPPABLE", actionBn: "নিয়ম মেনেই সেশনটি শেষ করুন।", adviceBn: "Winners follow rules. আপনি আজ বিজয়ী।", actionEn: "End the session by following the rules.", adviceEn: "Winners follow rules. You're a winner today." },
+  { status: "PROFIT RUNNER", actionBn: "আজকের অর্জন ধরে রাখতে এখন বের হন।", adviceBn: "Greed ends when goal begins. সাবাস!", actionEn: "Exit now to lock in today's gains.", adviceEn: "Greed ends when goal begins. Well done!" },
+  { status: "SMART GAIN", actionBn: "নিজের জন্য কিছু সময় দিন। সেশন ক্লোজ।", adviceBn: "Trading is 10% skill, 90% patience. জিতলেন আজ।", actionEn: "Give yourself some time. Session closed.", adviceEn: "Trading is 10% skill, 90% patience. You won today." },
+  { status: "MASTER MOVE", actionBn: "আজকের সেশন আর না বাড়ানোই ভালো।", adviceBn: "You outplayed the market. দারুণ মুভ!", actionEn: "Best not to extend today's session further.", adviceEn: "You outplayed the market. Great move!" },
+  { status: "GOLD WINNER", actionBn: "টার্মিনাল লগ-আউট করে দিন।", adviceBn: "Stick to the plan. This is the result. সাবাস!", actionEn: "Log out of the terminal.", adviceEn: "Stick to the plan. This is the result. Well done!" },
+  { status: "PROFIT MASTER", actionBn: "মার্কেট থেকে আপনার অংশ নিয়ে নিয়েছেন। সরুন।", adviceBn: "Patience pays off well. অভিনন্দন।", actionEn: "You've taken your share from the market — step aside.", adviceEn: "Patience pays off well. Congratulations." },
+  { status: "SUCCESSFUL RUN", actionBn: "দিনটি হাসিমুখে শেষ করুন।", adviceBn: "You are doing great. Keep it up. অভিনন্দন।", actionEn: "End the day with a smile.", adviceEn: "You are doing great. Keep it up. Congratulations." },
+  { status: "GOAL REACHED", actionBn: "আর কোনো রিস্ক নেওয়ার প্রয়োজন নেই।", adviceBn: "Discipline is your true asset. সাবাস!", actionEn: "No need to take any more risk.", adviceEn: "Discipline is your true asset. Well done!" },
+  { status: "PROFIT TAKEN", actionBn: "আজকের সেশন এখানেই সমাপ্ত।", adviceBn: "Win with grace. কাল আবার দেখা হবে।", actionEn: "Today's session ends here.", adviceEn: "Win with grace. See you again tomorrow." },
+  { status: "CHAMPION SESSION", actionBn: "আজকের বিজয়ী আপনিই। বিশ্রাম নিন।", adviceBn: "You followed every rule. Well done. সাবাস!", actionEn: "You're today's champion. Take a rest.", adviceEn: "You followed every rule. Well done!" },
+];
+
+const LOSS_ITEMS: StatusItem[] = [
+  { status: "TRADING SUSPENDED", actionBn: "ট্রেডিং স্টেশনের পরিবর্তে পরিবারের সাথে সময় কাটান।", adviceBn: "Market is Always Right. মার্কেটকে দোষ না দিয়ে নিজের ভুল খুঁজুন।", actionEn: "Spend time with family instead of the trading station.", adviceEn: "The Market is Always Right. Look for your own mistake instead of blaming the market." },
+  { status: "CAPITAL GUARD", actionBn: "রিভেঞ্জ ট্রেড করবেন না। টার্মিনাল অফ করুন।", adviceBn: "Protecting equity is your #1 job. আজ থেমে যাওয়াই বুদ্ধিমান।", actionEn: "Don't revenge trade. Turn off the terminal.", adviceEn: "Protecting equity is your #1 job. Stopping today is the wise move." },
+  { status: "STOP LOSS HIT", actionBn: "মার্কেট থেকে দূরে থাকুন। কাল ফ্রেশ শুরু হবে।", adviceBn: "SL hit means you are safe from a bigger crash. মেনে নিন।", actionEn: "Stay away from the market. Tomorrow is a fresh start.", adviceEn: "SL hit means you are safe from a bigger crash. Accept it." },
+  { status: "RISK ALERT", actionBn: "চার্ট দেখা বন্ধ দিন। অন্য কাজে মন দিন।", adviceBn: "Save capital today to trade tomorrow. টিকে থাকাই আসল।", actionEn: "Stop watching the charts. Focus on something else.", adviceEn: "Save capital today to trade tomorrow. Survival is what matters." },
+  { status: "PROTECTION ON", actionBn: "আজ আপনার দিন নয়। বিরতি নিন।", adviceBn: "6% loss is better than a blown account. একাউন্ট বাঁচান।", actionEn: "Today isn't your day. Take a break.", adviceEn: "6% loss is better than a blown account. Protect your account." },
+  { status: "PAUSE SESSION", actionBn: "রিকাভারি করার চেষ্টা করবেন না।", adviceBn: "Don't overthink. লস ট্রেডিং বিজনেসের অংশ।", actionEn: "Don't try to recover the loss.", adviceEn: "Don't overthink. Loss is a part of the trading business." },
+  { status: "DISCIPLINE CHECK", actionBn: "ল্যাপটপ বন্ধ করে স্টেশনের বাইরে যান।", adviceBn: "Walk away from the charts now. নিয়ন্ত্রণ হারাবেন না।", actionEn: "Close the laptop and step away from the station.", adviceEn: "Walk away from the charts now. Don't lose control." },
+  { status: "MARKET VOLATILE", actionBn: "গোল্ড আজ বিপজ্জনক। নিরাপদ থাকাই ভালো।", adviceBn: "Market is wild today. ধৈর্য ধরুন।", actionEn: "Gold is dangerous today. Better to stay safe.", adviceEn: "Market is wild today. Be patient." },
+  { status: "RETREAT NOW", actionBn: "আজকের সেশন এখানেই সমাপ্ত।", adviceBn: "Tactical retreat for a better comeback. কাল সুযোগ আসবে।", actionEn: "Today's session ends here.", adviceEn: "Tactical retreat for a better comeback. Opportunity will come tomorrow." },
+  { status: "SYSTEM SHUTDOWN", actionBn: "আজ আর কোনো বাই-সেল এন্ট্রি নয়।", adviceBn: "Risk quota is finished. নিয়মই বড় ট্রেডার বানাবে।", actionEn: "No more buy-sell entries today.", adviceEn: "Risk quota is finished. Following the rules makes you a great trader." },
+  { status: "TAKE A BREAK", actionBn: "বাইরে হাঁটতে যান বা গান শুনুন।", adviceBn: "Go outside. ট্রেডিং থেকে মন সরিয়ে নিন।", actionEn: "Go for a walk outside or listen to music.", adviceEn: "Go outside. Take your mind off trading." },
+  { status: "RECOVERY BAN", actionBn: "লস রিকাভারি করতে গিয়ে লস বাড়াবেন না।", adviceBn: "Recovery trades usually double the loss. থামুন।", actionEn: "Don't increase the loss trying to recover it.", adviceEn: "Recovery trades usually double the loss. Stop." },
+  { status: "TRADING HALTED", actionBn: "ব্রেক নিন। নিয়মের বাইরে যাবেন না।", adviceBn: "Don't break your rules. আজ থামাটাই নিয়ম।", actionEn: "Take a break. Don't go outside your rules.", adviceEn: "Don't break your rules. Stopping today is the rule." },
+  { status: "BE PROFESSIONAL", actionBn: "একজন প্রফেশনাল হিসেবে লস স্বীকার করুন।", adviceBn: "Pros stop when the limit hits. আপনি আজ প্রফেশনাল।", actionEn: "Accept the loss like a professional.", adviceEn: "Pros stop when the limit hits. You're a professional today." },
+  { status: "ANALYSIS FAILED", actionBn: "মার্কেট আজ আপনার বিপক্ষে।", adviceBn: "Market changed, don't force it. কাল আবার সুযোগ পাবেন।", actionEn: "The market is against you today.", adviceEn: "Market changed, don't force it. You'll get another chance tomorrow." },
+  { status: "EXIT MARKET", actionBn: "আর কোনো সেটআপ খুঁজতে যাবেন না।", adviceBn: "No setups left for today. Leave. নিজেকে শান্ত রাখুন।", actionEn: "Don't look for any more setups.", adviceEn: "No setups left for today. Leave. Keep yourself calm." },
+  { status: "SAVE YOURSELF", actionBn: "আজ সেশন বন্ধ রাখাই সবথেকে বড় জয়।", adviceBn: "Save your psychology for tomorrow. ফিরে আসবেন কাল।", actionEn: "Keeping the session closed today is your biggest win.", adviceEn: "Save your psychology for tomorrow. You'll come back tomorrow." },
+  { status: "LIMIT REACHED", actionBn: "আজকের কোটা শেষ। আর ট্রেড নয়।", adviceBn: "Discipline pays more than luck. কাল আপনি জিতবেন।", actionEn: "Today's quota is over. No more trades.", adviceEn: "Discipline pays more than luck. You'll win tomorrow." },
+  { status: "STOP LOSS HIT", actionBn: "এসএল লেগেছে মানে মার্কেট খারাপ। থামুন।", adviceBn: "SL is a protection, not a failure. ভালো করেছেন।", actionEn: "SL hit means the market went bad. Stop.", adviceEn: "SL is a protection, not a failure. You did well." },
+  { status: "RE-EVALUATE", actionBn: "কাল সকালে ভুলগুলো নিয়ে অ্যানালাইসিস করবেন।", adviceBn: "Note the mistakes, but don't trade now. রিল্যাক্স।", actionEn: "Analyze your mistakes tomorrow morning.", adviceEn: "Note the mistakes, but don't trade now. Relax." },
+  { status: "PEACE OF MIND", actionBn: "সেশনটি অফ করে মনে প্রশান্তি আনুন।", adviceBn: "Close trades for peace of mind. মানসিক স্বাস্থ্য জরুরি।", actionEn: "Turn off the session and find peace of mind.", adviceEn: "Close trades for peace of mind. Mental health matters." },
+  { status: "DON'T OVERTRADE", actionBn: "লস হয়েছে বলে বারবার ট্রেড দেবেন না।", adviceBn: "You have time to recover later. তাড়াহুড়ো করবেন না।", actionEn: "Don't keep re-entering trades just because you lost.", adviceEn: "You have time to recover later. Don't rush." },
+  { status: "MARKET WINS", actionBn: "আজ মার্কেটকে তার পাওনা দিয়ে দিন।", adviceBn: "Let the market win today. You win tomorrow. চ্যাম্পিয়নরা থামে।", actionEn: "Give the market its due today.", adviceEn: "Let the market win today. You win tomorrow. Champions know when to stop." },
+  { status: "FINAL WARNING", actionBn: "একদমই আর কোনো ট্রেড নয়। স্টপ।", adviceBn: "Absolute stop. Do not enter any trade! মূলধন বাঁচান।", actionEn: "Absolutely no more trades. Stop.", adviceEn: "Absolute stop. Do not enter any trade! Protect your capital." },
+];
+
+function buildStatusTemplate(item: StatusItem, s: string, e: string, p: string, emoji: string, lang: Lang): string {
+  const action = lang === "en" ? item.actionEn : item.actionBn;
+  const advice = lang === "en" ? item.adviceEn : item.adviceBn;
+  return `╔════════════════════╗\n     STATUS: ${item.status} ${emoji}\n╚════════════════════╝\n━━━━━━━━━━━━━━━━━━━━━\n➤ CAPITAL DATA:\n   ▸ Start: $${s}\n   ▸ End:   $${e} (${p})\n\n➤ ACTION PLAN:\n   ▸ ${action}\n➤ ADVICE:\n   ▸ ${advice}\n━━━━━━━━━━━━━━━━━━━━━`;
 }
 
-function getOffDayTemplates(date: string): string[] {
+function getWinTemplates(s: string, e: string, p: string, lang: Lang = "bn"): string[] {
+  return WIN_ITEMS.map((item) => buildStatusTemplate(item, s, e, p, "✅", lang));
+}
+
+function getLossTemplates(s: string, e: string, p: string, lang: Lang = "bn"): string[] {
+  return LOSS_ITEMS.map((item) => buildStatusTemplate(item, s, e, p, "⚠️", lang));
+}
+
+interface OffDayItem {
+  adviceBn: string;
+  adviceEn: string;
+  emoji: string;
+}
+
+const OFFDAY_ITEMS: OffDayItem[] = [
+  { adviceBn: "মার্কেট আজ বন্ধ, নিজের ব্রেনকে রিচার্জ করার সুযোগ দিন।", adviceEn: "The market is closed today — give your brain a chance to recharge.", emoji: "✨" },
+  { adviceBn: "গত সপ্তাহের ভুলগুলো থেকে শিক্ষা নিন।", adviceEn: "Learn from last week's mistakes.", emoji: "🔋" },
+  { adviceBn: "আজ চার্ট দেখা একদম বন্ধ রাখুন।", adviceEn: "Keep the charts completely closed today.", emoji: "☕" },
+  { adviceBn: "গোল্ডের সাপোর্ট-রেজিস্ট্যান্সগুলো একবার চোখ বুলিয়ে নিন।", adviceEn: "Take a look at gold's support and resistance levels.", emoji: "📈" },
+  { adviceBn: "প্রফিট যাই হোক, আজ পরিবারকে সময় দিন।", adviceEn: "Whatever the profit, give time to family today.", emoji: "❤️" },
+  { adviceBn: "অতিরিক্ত চিন্তা করবেন না, মার্কেট কোথাও পালিয়ে যাচ্ছে না।", adviceEn: "Don't overthink — the market isn't going anywhere.", emoji: "😴" },
+  { adviceBn: "ছোট লটে সন্তুষ্ট থাকতে শেখাই প্রো-ট্রেডারের লক্ষণ।", adviceEn: "Learning to be content with small lots is the mark of a pro trader.", emoji: "💎" },
+  { adviceBn: "নিজের অ্যানালাইসিসের ওপর শতভাগ বিশ্বাস রাখুন।", adviceEn: "Trust your own analysis 100%.", emoji: "🪄" },
+  { adviceBn: "রিভেঞ্জ ট্রেডিং থেকে দূরে থাকার প্রতিজ্ঞা করুন।", adviceEn: "Promise yourself to stay away from revenge trading.", emoji: "🌱" },
+  { adviceBn: "নেগেটিভ চিন্তাগুলো মন থেকে মুছে ফেলুন।", adviceEn: "Clear negative thoughts from your mind.", emoji: "🎁" },
+  { adviceBn: "মনে রাখবেন, ক্যাপিটাল রক্ষা করাই আপনার প্রথম কাজ।", adviceEn: "Remember, protecting your capital is your first job.", emoji: "🛡️" },
+  { adviceBn: "গোল্ডের অস্থিরতা আজ থাক, আপনি শান্ত থাকুন।", adviceEn: "Let gold's volatility be — you stay calm.", emoji: "🪙" },
+  { adviceBn: "সাকসেসফুল ট্রেডার হতে হলে বিরতি নিতে জানতে হয়।", adviceEn: "To become a successful trader, you must know how to take breaks.", emoji: "💪" },
+  { adviceBn: "মানি ম্যানেজমেন্ট ইজ দ্য কি টু সাকসেস।", adviceEn: "Money management is the key to success.", emoji: "🧘‍♂️" },
+  { adviceBn: "সপ্তাহ শেষে কৃতজ্ঞতা প্রকাশ করুন।", adviceEn: "Express gratitude at the end of the week.", emoji: "😊" },
+  { adviceBn: "স্ক্রিন টাইম কমিয়ে আজ নিজের হবির জন্য সময় দিন।", adviceEn: "Cut down screen time and give time to your hobby today.", emoji: "📈" },
+  { adviceBn: "ট্রেডিংয়ের চাপ আজ একদম ভুলে যান।", adviceEn: "Forget all trading stress today.", emoji: "🍿" },
+  { adviceBn: "নিজের সেটআপের জন্য অপেক্ষা করার ধৈর্য সঞ্চয় করুন।", adviceEn: "Save up the patience to wait for your own setup.", emoji: "🎯" },
+  { adviceBn: "অন্যের সিগন্যাল নয়, নিজের বুদ্ধিতে ট্রেড করতে শিখুন।", adviceEn: "Learn to trade on your own judgment, not someone else's signal.", emoji: "🛡️" },
+  { adviceBn: "কালকের গ্যাপ ওপেনিং নিয়ে এখনই টেনশন করবেন না।", adviceEn: "Don't stress about tomorrow's gap opening right now.", emoji: "🌤️" },
+  { adviceBn: "শরীর সুস্থ না থাকলে ট্রেডিংয়ে ভুল হওয়ার সম্ভাবনা বাড়ে।", adviceEn: "If your body isn't healthy, mistakes in trading become more likely.", emoji: "💗" },
+  { adviceBn: "ফরেক্স মার্কেট ধৈর্যের পরীক্ষা নেয়, আবেগের নয়।", adviceEn: "The forex market tests patience, not emotion.", emoji: "✅" },
+  { adviceBn: "আজকের এই বিরতিই আপনার আগামী সপ্তাহের শক্তি।", adviceEn: "Today's break is your strength for next week.", emoji: "🙏" },
+  { adviceBn: "ভুল ট্রেডগুলো ডায়েরিতে লিখে রাখুন।", adviceEn: "Write down your bad trades in your journal.", emoji: "🏆" },
+  { adviceBn: "ট্রেডিং জার্নিতে কোনো শর্টকাট নেই, আজ রিল্যাক্স করুন।", adviceEn: "There are no shortcuts in the trading journey — relax today.", emoji: "🚶‍♂️" },
+  { adviceBn: "লসের পরে প্রফিটও আসবে। দেখা হবে ইনশাআল্লাহ।", adviceEn: "Profit will come after loss too. See you soon, God willing.", emoji: "🕯️" },
+];
+
+function getOffDayTemplates(date: string, lang: Lang = "bn"): string[] {
   const f = "\n░░░░░░░░░░░░░░░░░░░░░░░\n#TradingLife #HappyWeekend 🩵";
-  return [
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: মার্কেট আজ বন্ধ, নিজের ব্রেনকে রিচার্জ করার সুযোগ দিন। ✨` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: গত সপ্তাহের ভুলগুলো থেকে শিক্ষা নিন। 🔋` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: আজ চার্ট দেখা একদম বন্ধ রাখুন। ☕` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: গোল্ডের সাপোর্ট-রেজিস্ট্যান্সগুলো একবার চোখ বুলিয়ে নিন। 📈` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: প্রফিট যাই হোক, আজ পরিবারকে সময় দিন। ❤️` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: অতিরিক্ত চিন্তা করবেন না, মার্কেট কোথাও পালিয়ে যাচ্ছে না। 😴` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: ছোট লটে সন্তুষ্ট থাকতে শেখাই প্রো-ট্রেডারের লক্ষণ। 💎` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: নিজের অ্যানালাইসিসের ওপর শতভাগ বিশ্বাস রাখুন। 🪄` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: রিভেঞ্জ ট্রেডিং থেকে দূরে থাকার প্রতিজ্ঞা করুন। 🌱` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: নেগেটিভ চিন্তাগুলো মন থেকে মুছে ফেলুন। 🎁` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: মনে রাখবেন, ক্যাপিটাল রক্ষা করাই আপনার প্রথম কাজ। 🛡️` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: গোল্ডের অস্থিরতা আজ থাক, আপনি শান্ত থাকুন। 🪙` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: সাকসেসফুল ট্রেডার হতে হলে বিরতি নিতে জানতে হয়। 💪` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: মানি ম্যানেজমেন্ট ইজ দ্য কি টু সাকসেস। 🧘‍♂️` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: সপ্তাহ শেষে কৃতজ্ঞতা প্রকাশ করুন। 😊` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: স্ক্রিন টাইম কমিয়ে আজ নিজের হবির জন্য সময় দিন। 📈` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: ট্রেডিংয়ের চাপ আজ একদম ভুলে যান। 🍿` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: নিজের সেটআপের জন্য অপেক্ষা করার ধৈর্য সঞ্চয় করুন। 🎯` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: অন্যের সিগন্যাল নয়, নিজের বুদ্ধিতে ট্রেড করতে শিখুন। 🛡️` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: কালকের গ্যাপ ওপেনিং নিয়ে এখনই টেনশন করবেন না। 🌤️` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: শরীর সুস্থ না থাকলে ট্রেডিংয়ে ভুল হওয়ার সম্ভাবনা বাড়ে। 💗` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: ফরেক্স মার্কেট ধৈর্যের পরীক্ষা নেয়, আবেগের নয়। ✅` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: আজকের এই বিরতিই আপনার আগামী সপ্তাহের শক্তি। 🙏` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: ভুল ট্রেডগুলো ডায়েরিতে লিখে রাখুন। 🏆` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: ট্রেডিং জার্নিতে কোনো শর্টকাট নেই, আজ রিল্যাক্স করুন। 🚶‍♂️` + f,
-    `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: লসের পরে প্রফিটও আসবে। দেখা হবে ইনশাআল্লাহ। 🕯️` + f,
-  ];
+  return OFFDAY_ITEMS.map((item) => {
+    const advice = lang === "en" ? item.adviceEn : item.adviceBn;
+    return `░░░░░░░░ OFF DAY ░░░░░░░░\n● DATE: ${date}\n● ADVICE: ${advice} ${item.emoji}` + f;
+  });
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -340,7 +373,7 @@ export async function sendDailyRecapToAll() {
   for (const tg of allSettings) {
     if (!tg.botToken || !tg.chatId) continue;
     try {
-      await sendDailyRecap(tg.userId, tg.botToken, tg.chatId, tg.groupId, today);
+      await sendDailyRecap(tg.userId, tg.botToken, tg.chatId, tg.groupId, today, (tg.notifyLanguage as Lang) || "bn");
     } catch (e) {
       logger.error({ err: e, userId: tg.userId }, "[notify] daily recap failed");
     }
@@ -353,6 +386,7 @@ async function sendDailyRecap(
   chatId: string,
   groupId: string | null | undefined,
   date: string,
+  lang: Lang = "bn",
 ) {
   const investors = await db
     .select()
@@ -377,7 +411,7 @@ async function sendDailyRecap(
     const mm  = String(d.getMonth() + 1).padStart(2, "0");
     const yyyy = d.getFullYear();
     const fullDateStr = `${dayNames[d.getDay()]}, ${dd}.${mm}.${yyyy}`;
-    await sendToUser(botToken, chatId, groupId, pick(getOffDayTemplates(fullDateStr)));
+    await sendToUser(botToken, chatId, groupId, pick(getOffDayTemplates(fullDateStr, lang)));
     return;
   }
 
@@ -659,12 +693,13 @@ export async function sendRiskAlertIfNeeded(userId: string, tradeId: number) {
   const pText = (growthPct >= 0 ? "+" : "") + growthPct.toFixed(2) + "%";
 
   // Only fire when THIS trade is what first pushed P&L past the threshold
+  const notifyLang = (tg.notifyLanguage as Lang) || "bn";
   if (growthPct >= winThreshold && growthBefore < winThreshold) {
-    const msg = pick(getWinTemplates(startText, currentText, pText));
+    const msg = pick(getWinTemplates(startText, currentText, pText, notifyLang));
     await broadcastTelegramMessage(tg.botToken, tg.chatId, tg.groupId, msg);
     await saveNotificationForUser(userId, "win_alert", `✅ Win Alert — Target Hit! (${pText})`, msg);
   } else if (growthPct <= -Math.abs(lossThreshold) && growthBefore > -Math.abs(lossThreshold)) {
-    const msg = pick(getLossTemplates(startText, currentText, pText));
+    const msg = pick(getLossTemplates(startText, currentText, pText, notifyLang));
     await broadcastTelegramMessage(tg.botToken, tg.chatId, tg.groupId, msg);
     await saveNotificationForUser(userId, "loss_alert", `⚠️ Loss Alert — Risk Threshold Hit (${pText})`, msg);
   }

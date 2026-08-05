@@ -420,7 +420,17 @@ export interface TelegramSettings {
   winThresholdPct?: number;
   /** Send loss alert when drawdown >= this % (default 6) */
   lossThresholdPct?: number;
+  /** Telegram notification text language: 'en' (pure English) or 'bn' (current Bengali-mixed templates, default) */
+  notifyLanguage?: TelegramSettingsNotifyLanguage;
 }
+
+export type TelegramSettingsNotifyLanguage = (typeof TelegramSettingsNotifyLanguage)[keyof typeof TelegramSettingsNotifyLanguage];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const TelegramSettingsNotifyLanguage = {
+  en: 'en',
+  bn: 'bn',
+} as const;
 
 export interface TelegramSettingsInput {
   botToken?: string;
@@ -432,7 +442,16 @@ export interface TelegramSettingsInput {
   riskAlertEnabled?: boolean;
   winThresholdPct?: number;
   lossThresholdPct?: number;
+  notifyLanguage?: TelegramSettingsInputNotifyLanguage;
 }
+
+export type TelegramSettingsInputNotifyLanguage = (typeof TelegramSettingsInputNotifyLanguage)[keyof typeof TelegramSettingsInputNotifyLanguage];
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const TelegramSettingsInputNotifyLanguage = {
+  en: 'en',
+  bn: 'bn',
+} as const;
 
 export interface AccountSettings {
   id: number;

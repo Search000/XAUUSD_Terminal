@@ -22,4 +22,6 @@ export interface TelegramSettings {
   winThresholdPct?: number;
   /** Send loss alert when drawdown >= this % (default 6) */
   lossThresholdPct?: number;
+  /** Telegram notification text language: 'en' (pure English) or 'bn' (current Bengali-mixed templates, default) */
+  notifyLanguage?: 'en' | 'bn';
 }

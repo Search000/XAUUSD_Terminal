@@ -16,4 +16,5 @@ export interface TelegramSettingsInput {
   riskAlertEnabled?: boolean;
   winThresholdPct?: number;
   lossThresholdPct?: number;
+  notifyLanguage?: 'en' | 'bn';
 }

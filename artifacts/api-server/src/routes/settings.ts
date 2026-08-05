@@ -35,6 +35,7 @@ router.get("/settings/telegram", requireAuth, asyncHandler(async (req, res) => {
       riskAlertEnabled: false,
       winThresholdPct: 10,
       lossThresholdPct: 6,
+      notifyLanguage: "bn",
     });
     return;
   }
@@ -79,6 +80,7 @@ const updateTelegramSettingsSchema = z.object({
   riskAlertEnabled: z.boolean().optional(),
   winThresholdPct:  z.number().min(0).max(100).optional(),
   lossThresholdPct: z.number().min(0).max(100).optional(),
+  notifyLanguage:   z.enum(["en", "bn"]).optional(),
 });
 
 /** PUT /api/settings/telegram */
@@ -108,6 +110,7 @@ router.put("/settings/telegram", requireAuth, asyncHandler(async (req, res) => {
         riskAlertEnabled: body.riskAlertEnabled ?? existing.riskAlertEnabled,
         winThresholdPct: body.winThresholdPct != null ? String(body.winThresholdPct) : existing.winThresholdPct,
         lossThresholdPct: body.lossThresholdPct != null ? String(body.lossThresholdPct) : existing.lossThresholdPct,
+        notifyLanguage: body.notifyLanguage ?? existing.notifyLanguage,
         updatedAt: new Date(),
       })
       .where(eq(telegramSettingsTable.userId, userId))
@@ -127,6 +130,7 @@ router.put("/settings/telegram", requireAuth, asyncHandler(async (req, res) => {
         riskAlertEnabled: body.riskAlertEnabled ?? false,
         winThresholdPct: body.winThresholdPct != null ? String(body.winThresholdPct) : "10",
         lossThresholdPct: body.lossThresholdPct != null ? String(body.lossThresholdPct) : "6",
+        notifyLanguage: body.notifyLanguage ?? "bn",
       })
       .returning();
     res.json(serializeTelegramSettings(created));
@@ -210,6 +214,7 @@ function serializeTelegramSettings(s: typeof telegramSettingsTable.$inferSelect)
     riskAlertEnabled: s.riskAlertEnabled,
     winThresholdPct: s.winThresholdPct ? parseFloat(s.winThresholdPct) : 10,
     lossThresholdPct: s.lossThresholdPct ? parseFloat(s.lossThresholdPct) : 6,
+    notifyLanguage: s.notifyLanguage ?? "bn",
   };
 }
 
