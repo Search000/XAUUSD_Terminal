@@ -23,8 +23,6 @@ import { FuturesCurvePanel } from '@/components/xauusd/FuturesCurvePanel';
 import { CotHistoryPanel } from '@/components/xauusd/CotHistoryPanel';
 import { GoldSilverRatioPanel } from '@/components/xauusd/GoldSilverRatioPanel';
 import { VixPanel } from '@/components/xauusd/VixPanel';
-import { VarStressPanel } from '@/components/xauusd/VarStressPanel';
-import { OptionsFlowPanel } from '@/components/xauusd/OptionsFlowPanel';
 
 /**
  * Panels are mounted in 4 progressive batches to avoid firing 20+ API
@@ -38,11 +36,8 @@ import { OptionsFlowPanel } from '@/components/xauusd/OptionsFlowPanel';
  *                    Correlations, FuturesCurve, VolumeProfile
  * Batch 4 (2 400 ms) – macro / historical: Seasonality, Inflation, FedRate,
  *                    CentralBank, Mining, HistoricalEvents
- * Batch 5 (3 600 ms) – lowest-priority extras: OptionsFlow (also has the
- *                    heaviest single request — a full options chain fetch —
- *                    so it's kept isolated from the batch 4 burst)
  */
-const BATCH_DELAYS = [0, 600, 1400, 2400, 3600];
+const BATCH_DELAYS = [0, 600, 1400, 2400];
 
 export function XauusdMonitorPage() {
   // batch goes 1 → 2 → 3 → 4 as timers fire
@@ -119,23 +114,12 @@ export function XauusdMonitorPage() {
                 </div>
               )}
 
-              {batch >= 4 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <CotHistoryPanel />
-                  <VarStressPanel />
-                </div>
-              )}
+              {batch >= 4 && <CotHistoryPanel />}
 
               {batch >= 4 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <CentralBankHoldings />
                   <MiningStocks />
-                </div>
-              )}
-
-              {batch >= 5 && (
-                <div style={{ minHeight: 320 }}>
-                  <OptionsFlowPanel />
                 </div>
               )}
 
