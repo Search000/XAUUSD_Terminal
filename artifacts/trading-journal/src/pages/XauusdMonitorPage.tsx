@@ -38,8 +38,11 @@ import { OptionsFlowPanel } from '@/components/xauusd/OptionsFlowPanel';
  *                    Correlations, FuturesCurve, VolumeProfile
  * Batch 4 (2 400 ms) – macro / historical: Seasonality, Inflation, FedRate,
  *                    CentralBank, Mining, HistoricalEvents
+ * Batch 5 (3 600 ms) – lowest-priority extras: OptionsFlow (also has the
+ *                    heaviest single request — a full options chain fetch —
+ *                    so it's kept isolated from the batch 4 burst)
  */
-const BATCH_DELAYS = [0, 600, 1400, 2400];
+const BATCH_DELAYS = [0, 600, 1400, 2400, 3600];
 
 export function XauusdMonitorPage() {
   // batch goes 1 → 2 → 3 → 4 as timers fire
@@ -130,7 +133,7 @@ export function XauusdMonitorPage() {
                 </div>
               )}
 
-              {batch >= 4 && (
+              {batch >= 5 && (
                 <div style={{ minHeight: 320 }}>
                   <OptionsFlowPanel />
                 </div>
