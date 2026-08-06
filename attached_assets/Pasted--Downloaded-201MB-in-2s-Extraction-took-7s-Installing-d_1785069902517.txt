@@ -1,0 +1,44 @@
+==> Downloaded 201MB in 2s. Extraction took 7s.
+==> Installing dependencies with pnpm...
+==> Using Node.js version 24.14.1 (default)
+==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+==> Running build command 'npx --yes pnpm@10.26.1 install --frozen-lockfile && PORT=3000 BASE_PATH=/ npx --yes pnpm@10.26.1 --filter @workspace/trading-journal run build'...
+> @workspace/trading-journal@0.0.0 build /opt/render/project/src/artifacts/trading-journal
+> vite build --config vite.config.ts
+vite v7.3.6 building client environment for production...
+transforming...
+Found 2 warnings while optimizing generated CSS:
+Issue #1:
+│   color: hsl(215 14% 55%);
+│ }
+│ :root:not(.dark) .bg-\[#17181C\] {
+┆                        ^-- Unexpected token Hash("17181C]")
+┆
+│   background-color: hsl(var(--card));
+│ }
+Issue #2:
+│   background-color: hsl(var(--card));
+│ }
+│ :root:not(.dark) .bg-\[#1C1D22\] {
+┆                        ^-- Unexpected token Hash("1C1D22]")
+┆
+│   background-color: hsl(var(--secondary));
+│ }
+src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+✓ 2775 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/public/index.html                              1.46 kB │ gzip:   0.56 kB
+dist/public/assets/index-DavcYxdT.css             141.28 kB │ gzip:  21.94 kB
+dist/public/assets/purify.es-VaSPOPhr.js           28.72 kB │ gzip:  10.77 kB
+dist/public/assets/index.es-CGJXdSud.js           158.79 kB │ gzip:  53.02 kB
+dist/public/assets/html2canvas.esm-DXEQVQnt.js    201.04 kB │ gzip:  47.43 kB
+dist/public/assets/index-Xf8Tv0tB.js            1,512.01 kB │ gzip: 445.11 kB
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 6.81s
+==> Uploading build...
+==> Your site is live 🎉

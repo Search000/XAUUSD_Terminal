@@ -1,0 +1,2326 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: XAUUSD Trading Journal API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: licenses
+    description: License key management
+  - name: trades
+    description: Trade log management
+  - name: dashboard
+    description: Dashboard statistics
+  - name: reports
+    description: Weekly/Monthly reports
+  - name: investors
+    description: Investor share tracking
+  - name: settings
+    description: User settings (Telegram etc.)
+  - name: admin
+    description: Admin panel operations
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ─── LICENSE ───────────────────────────────────────────────
+  /licenses/generate:
+    post:
+      operationId: generateLicense
+      tags: [licenses]
+      summary: Admin – generate license from transaction code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LicenseGenerateInput"
+      responses:
+        "201":
+          description: License generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/License"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /licenses/activate:
+    post:
+      operationId: activateLicense
+      tags: [licenses]
+      summary: User – activate account with a license code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LicenseActivateInput"
+      responses:
+        "200":
+          description: License activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseStatus"
+        "400":
+          description: Invalid or expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /licenses/status:
+    get:
+      operationId: getLicenseStatus
+      tags: [licenses]
+      summary: Get current user's license status
+      responses:
+        "200":
+          description: License status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseStatus"
+
+  /licenses:
+    get:
+      operationId: listLicenses
+      tags: [licenses]
+      summary: Admin – list all licenses
+      responses:
+        "200":
+          description: List of licenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/License"
+
+  /licenses/{id}/revoke:
+    patch:
+      operationId: revokeLicense
+      tags: [licenses]
+      summary: Admin – revoke a license
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: License revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/License"
+
+  /licenses/{id}:
+    delete:
+      operationId: deleteLicense
+      tags: [licenses]
+      summary: Admin – permanently delete a license
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: License deleted
+        "404":
+          description: License not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── ME ───────────────────────────────────────────────────
+  /me/is-admin:
+    get:
+      operationId: getMeIsAdmin
+      tags: [admin]
+      summary: Check if current user is admin
+      responses:
+        "200":
+          description: Admin status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeAdminStatus"
+        "401":
+          description: Unauthorized
+
+  # ─── TRADES ───────────────────────────────────────────────
+  /trades:
+    get:
+      operationId: listTrades
+      tags: [trades]
+      summary: List trades for current user
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of trades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trade"
+    post:
+      operationId: createTrade
+      tags: [trades]
+      summary: Log a new trade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeInput"
+      responses:
+        "201":
+          description: Trade created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trade"
+
+  /trades/{id}:
+    patch:
+      operationId: updateTrade
+      tags: [trades]
+      summary: Update a trade (e.g. close price, status)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeUpdate"
+      responses:
+        "200":
+          description: Trade updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trade"
+    delete:
+      operationId: deleteTrade
+      tags: [trades]
+      summary: Delete a trade
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── DASHBOARD ────────────────────────────────────────────
+  /dashboard/daily:
+    get:
+      operationId: getDailyDashboard
+      tags: [dashboard]
+      summary: Today's trading stats (D-Board)
+      responses:
+        "200":
+          description: Daily stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyStats"
+
+  /dashboard/weekly:
+    get:
+      operationId: getWeeklyDashboard
+      tags: [dashboard]
+      summary: Current week stats
+      parameters:
+        - name: weekNumber
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Weekly stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklyStats"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Quick overview – balance, growth, monthly KPIs
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  # ─── REPORTS ──────────────────────────────────────────────
+  /reports/weekly:
+    get:
+      operationId: getWeeklyReport
+      tags: [reports]
+      summary: All weekly reports for a given month
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Weekly breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WeeklyReportRow"
+
+  /reports/monthly:
+    get:
+      operationId: getMonthlyReport
+      tags: [reports]
+      summary: Monthly aggregated report
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Monthly reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MonthlyReportRow"
+
+  /reports/reset:
+    post:
+      operationId: resetMonthlyReport
+      tags: [reports]
+      summary: Reset monthly tracker (start new month)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MonthResetInput"
+      responses:
+        "200":
+          description: Reset done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthResetResult"
+
+  # ─── INVESTORS ────────────────────────────────────────────
+  /investors:
+    get:
+      operationId: listInvestors
+      tags: [investors]
+      summary: List investors with share calculations
+      responses:
+        "200":
+          description: Investors list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Investor"
+    post:
+      operationId: createInvestor
+      tags: [investors]
+      summary: Add an investor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvestorInput"
+      responses:
+        "201":
+          description: Investor created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Investor"
+
+  /investors/shares:
+    get:
+      operationId: getInvestorShares
+      tags: [investors]
+      summary: Calculate share breakdown with P&L
+      responses:
+        "200":
+          description: Share calculations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareCalculation"
+
+  /investors/{id}:
+    patch:
+      operationId: updateInvestor
+      tags: [investors]
+      summary: Update investor details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvestorUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Investor"
+    delete:
+      operationId: deleteInvestor
+      tags: [investors]
+      summary: Remove investor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── SETTINGS ─────────────────────────────────────────────
+  /settings/telegram:
+    get:
+      operationId: getTelegramSettings
+      tags: [settings]
+      summary: Get Telegram bot settings
+      responses:
+        "200":
+          description: Telegram settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramSettings"
+    put:
+      operationId: updateTelegramSettings
+      tags: [settings]
+      summary: Save Telegram bot settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramSettingsInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramSettings"
+
+  /settings/telegram/test:
+    post:
+      operationId: testTelegramConnection
+      tags: [settings]
+      summary: Send a test Telegram message using saved bot credentials
+      responses:
+        "200":
+          description: Test message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Missing credentials or send failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /settings/account:
+    get:
+      operationId: getAccountSettings
+      tags: [settings]
+      summary: Get account/trading settings (timezone, risk, target)
+      responses:
+        "200":
+          description: Account settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountSettings"
+    put:
+      operationId: updateAccountSettings
+      tags: [settings]
+      summary: Update account settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountSettingsInput"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountSettings"
+
+  # ─── ADMIN ────────────────────────────────────────────────
+  /admin/users:
+    get:
+      operationId: adminListUsers
+      tags: [admin]
+      summary: Admin – list all registered users with license status
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUser"
+
+  /admin/roles:
+    get:
+      operationId: adminListRoles
+      tags: [admin]
+      summary: Admin – list staff roles with their permissions and description
+      responses:
+        "200":
+          description: Roles list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RolePermissions"
+
+  /admin/users/{userId}/role:
+    put:
+      operationId: adminSetUserRole
+      tags: [admin]
+      summary: Admin (owner only) – assign a staff role to a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetUserRoleInput"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [userId, email, role]
+                properties:
+                  userId:
+                    type: string
+                  email:
+                    type: string
+                  role:
+                    $ref: "#/components/schemas/UserRole"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Admin – overall platform stats
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  /admin/notifications/broadcast:
+    post:
+      operationId: adminBroadcastNotification
+      tags: [admin]
+      summary: Admin – send a notification to all users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationBroadcastInput"
+      responses:
+        "201":
+          description: Notification created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppNotification"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/notifications/send-to-users:
+    post:
+      operationId: adminSendToUsers
+      tags: [admin]
+      summary: Admin – send notification to specific users only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationTargetedInput"
+      responses:
+        "201":
+          description: Notifications sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent:
+                    type: integer
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/notifications:
+    get:
+      operationId: adminListNotifications
+      tags: [admin]
+      summary: Admin – list sent broadcast notifications
+      responses:
+        "200":
+          description: Notifications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppNotification"
+    delete:
+      operationId: adminClearAllNotifications
+      tags: [admin]
+      summary: Admin – delete all broadcast notifications history
+      responses:
+        "200":
+          description: All deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+
+  /admin/notifications/{id}:
+    delete:
+      operationId: adminDeleteNotification
+      tags: [admin]
+      summary: Admin – delete a single broadcast notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "404":
+          description: Not found
+
+  /admin/system-settings:
+    get:
+      operationId: adminGetSystemSettings
+      tags: [admin]
+      summary: Admin – get system settings (licenseEnforcementEnabled, trialModeEnabled)
+      responses:
+        "200":
+          description: System settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+    put:
+      operationId: adminUpdateSystemSettings
+      tags: [admin]
+      summary: Admin – update system settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemSettingsInput"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+
+  /admin/activity:
+    get:
+      operationId: adminGetActivity
+      tags: [admin]
+      summary: Admin – user activity log (login times, trade counts, license status)
+      responses:
+        "200":
+          description: Activity list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserActivity"
+
+  /licenses/trial:
+    post:
+      operationId: activateTrial
+      tags: [licenses]
+      summary: User – self-activate 7-day free trial (requires trialModeEnabled)
+      responses:
+        "201":
+          description: Trial activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LicenseStatus"
+        "400":
+          description: Trial already used
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Trial mode disabled by admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── GOLD PRICE ───────────────────────────────────────────────────────────
+  /gold-price:
+    get:
+      operationId: getGoldPrice
+      tags: [dashboard]
+      summary: Fetch live XAU/USD price from Yahoo Finance proxy
+      responses:
+        "200":
+          description: Current gold price data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoldPrice"
+        "503":
+          description: Upstream price feed unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── FEEDBACK
+  /feedback:
+    post:
+      operationId: submitFeedback
+      tags: [feedback]
+      summary: Submit a rating + optional comment after trial
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackInput"
+      responses:
+        "201":
+          description: Feedback saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FeedbackResponse"
+
+  /admin/feedback:
+    get:
+      operationId: adminListFeedback
+      tags: [admin]
+      summary: Admin – list all user feedback/ratings
+      responses:
+        "200":
+          description: Feedback list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FeedbackResponse"
+
+  # ─── MISTAKES ─────────────────────────────────────────────────────────────
+  /mistakes/monthly:
+    get:
+      operationId: getMistakesMonthly
+      tags: [trades]
+      summary: Monthly breakdown of loss reasons (Mistake Journal)
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Mistake breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MistakeReport"
+
+  # ─── HEATMAP ──────────────────────────────────────────────────────────────
+  /heatmap/dayofweek:
+    get:
+      operationId: getHeatmapByDayOfWeek
+      tags: [trades]
+      summary: Aggregated PnL and win/loss stats grouped by day of week
+      responses:
+        "200":
+          description: Day-of-week heatmap stats
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DayOfWeekStat"
+
+  # ─── ACHIEVEMENTS ─────────────────────────────────────────────────────────
+  /achievements:
+    get:
+      operationId: getAchievements
+      tags: [trades]
+      summary: Get earned and locked achievement badges
+      responses:
+        "200":
+          description: Achievement badges
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AchievementsReport"
+
+  # ─── SCORE ────────────────────────────────────────────────────────────────
+  /score/weekly:
+    get:
+      operationId: getWeeklyScore
+      tags: [trades]
+      summary: Weekly trading score — win rate, RR, consistency → A/B/C/D grade
+      responses:
+        "200":
+          description: Weekly score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradingScore"
+
+  # ─── NOTIFICATIONS ────────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [settings]
+      summary: Get current user's notifications (own + admin broadcasts)
+      responses:
+        "200":
+          description: Notifications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppNotification"
+
+  /notifications/unread-count:
+    get:
+      operationId: getNotificationsUnreadCount
+      tags: [settings]
+      summary: Get count of unread notifications
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationUnreadCount"
+
+  /notifications/read-all:
+    patch:
+      operationId: markAllNotificationsRead
+      tags: [settings]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [settings]
+      summary: Mark a single notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── CONTACT ──────────────────────────────────────────────────────────────
+  /contact:
+    post:
+      operationId: submitContactRequest
+      tags: [licenses]
+      summary: Public – submit a license purchase contact request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactInput"
+      responses:
+        "200":
+          description: Request recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactResponse"
+
+  /admin/contact-attempts:
+    get:
+      operationId: adminListContactAttempts
+      tags: [admin]
+      summary: Admin – list all IPs with contact attempt counts
+      responses:
+        "200":
+          description: Contact attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactAttemptsResponse"
+    delete:
+      operationId: adminClearContactAttempts
+      tags: [admin]
+      summary: Admin – reset ALL contact attempt IPs
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/contact-attempts/{ip}:
+    delete:
+      operationId: adminDeleteContactAttempt
+      tags: [admin]
+      summary: Admin – reset contact attempts for a specific IP
+      parameters:
+        - name: ip
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/contact-config:
+    get:
+      operationId: adminGetContactConfig
+      tags: [admin]
+      summary: Admin – get contact attempt limit config
+      responses:
+        "200":
+          description: Config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactConfig"
+    put:
+      operationId: adminUpdateContactConfig
+      tags: [admin]
+      summary: Admin – update contact attempt limit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactConfigInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactConfig"
+
+  # ─── OFFERS ───────────────────────────────────────────────────────────────
+  /offers:
+    get:
+      operationId: listActiveOffers
+      tags: [admin]
+      summary: Public – list active offers (isOn=true)
+      responses:
+        "200":
+          description: Active offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Offer"
+
+  /admin/offers:
+    get:
+      operationId: adminListOffers
+      tags: [admin]
+      summary: Admin – list all offers
+      responses:
+        "200":
+          description: All offers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Offer"
+    post:
+      operationId: adminCreateOffer
+      tags: [admin]
+      summary: Admin – create a new offer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OfferInput"
+      responses:
+        "201":
+          description: Offer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+
+  /admin/offers/{id}:
+    patch:
+      operationId: adminUpdateOffer
+      tags: [admin]
+      summary: Admin – update offer fields
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OfferInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: adminDeleteOffer
+      tags: [admin]
+      summary: Admin – delete an offer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /admin/offers/{id}/toggle:
+    patch:
+      operationId: adminToggleOffer
+      tags: [admin]
+      summary: Admin – toggle offer active state (isOn)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Offer"
+        "404":
+          description: Not found
+
+  # ─── SUPPORT ──────────────────────────────────────────────────────────────
+  /support/message:
+    post:
+      operationId: submitSupportMessage
+      tags: [settings]
+      summary: Authenticated user – send a support message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportMessageInput"
+      responses:
+        "201":
+          description: Message saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportMessageResponse"
+
+  /admin/support/messages:
+    get:
+      operationId: adminListSupportMessages
+      tags: [admin]
+      summary: Admin – list all support messages
+      responses:
+        "200":
+          description: Support messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportMessage"
+
+  /admin/support/unread-count:
+    get:
+      operationId: adminGetSupportUnreadCount
+      tags: [admin]
+      summary: Admin – count unread support messages
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationUnreadCount"
+
+  /admin/support/messages/read-all:
+    put:
+      operationId: adminMarkAllSupportRead
+      tags: [admin]
+      summary: Admin – mark all support messages as read
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/support/messages/{id}/read:
+    put:
+      operationId: adminMarkSupportMessageRead
+      tags: [admin]
+      summary: Admin – mark a support message as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid id
+
+# ─── SCHEMAS ──────────────────────────────────────────────────────────────────
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required: [success]
+
+    MonthResetResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        deleted:
+          type: integer
+          description: Number of trades deleted during the reset
+      required: [success, deleted]
+
+    # LICENSE
+    LicenseGenerateInput:
+      type: object
+      required: [transactionCode, durationDays]
+      properties:
+        transactionCode:
+          type: string
+          description: Payment transaction reference (e.g. last 4 digits or code like ADSAD46EFEE)
+        durationDays:
+          type: integer
+          description: Subscription duration in days
+        note:
+          type: ["string", "null"]
+          description: Optional admin note
+
+    LicenseActivateInput:
+      type: object
+      required: [licenseCode]
+      properties:
+        licenseCode:
+          type: string
+
+    License:
+      type: object
+      required: [id, licenseCode, transactionCode, durationDays, expiresAt, isActive, isRevoked, createdAt]
+      properties:
+        id:
+          type: integer
+        licenseCode:
+          type: string
+        transactionCode:
+          type: string
+        durationDays:
+          type: integer
+        activatedAt:
+          type: ["string", "null"]
+        expiresAt:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        isRevoked:
+          type: boolean
+        usedByUserId:
+          type: ["string", "null"]
+        usedByEmail:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    LicenseStatus:
+      type: object
+      required: [hasLicense, isActive, licenseEnforcementEnabled, trialModeEnabled, isTrial]
+      properties:
+        hasLicense:
+          type: boolean
+        isActive:
+          type: boolean
+        licenseEnforcementEnabled:
+          type: boolean
+          description: When false, authenticated users can access the terminal without a license.
+        expiresAt:
+          type: ["string", "null"]
+        activatedAt:
+          type: ["string", "null"]
+          description: ISO timestamp when the license was activated.
+        durationDays:
+          type: ["integer", "null"]
+          description: Total duration of the license in days.
+        daysRemaining:
+          type: ["integer", "null"]
+        trialModeEnabled:
+          type: boolean
+          description: When true, users can self-activate a free trial.
+        trialDurationDays:
+          type: ["integer", "null"]
+          description: The configured free trial duration in days.
+        isTrial:
+          type: boolean
+          description: When true, the user's current license is a free trial.
+
+    # TRADES
+    Trade:
+      type: object
+      required: [id, userId, tradeDate, direction, status, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        tradeDate:
+          type: string
+        balance:
+          type: ["number", "null"]
+        riskPct:
+          type: ["number", "null"]
+        entryPrice:
+          type: ["number", "null"]
+        slPrice:
+          type: ["number", "null"]
+        tpPrice:
+          type: ["number", "null"]
+        lotSize:
+          type: ["number", "null"]
+        direction:
+          type: string
+          enum: [Long, Short]
+        status:
+          type: string
+          enum: [Pending, Running, TP Hit, SL Hit]
+        closePrice:
+          type: ["number", "null"]
+        pips:
+          type: ["number", "null"]
+        pnl:
+          type: ["number", "null"]
+        tags:
+          type: ["string", "null"]
+          description: Comma-separated trade tags such as Scalp, Swing, or News
+        session:
+          type: ["string", "null"]
+          enum: [Asia, London, New York]
+        notes:
+          type: ["string", "null"]
+        lossReason:
+          type: ["string", "null"]
+          description: Mistake Journal — why did this losing trade fail? (FOMO, Revenge Trade, News, Wrong SL, etc.)
+        createdAt:
+          type: string
+
+    TradeInput:
+      type: object
+      required: [tradeDate, direction]
+      properties:
+        tradeDate:
+          type: string
+        balance:
+          type: ["number", "null"]
+        riskPct:
+          type: ["number", "null"]
+        entryPrice:
+          type: ["number", "null"]
+        slPrice:
+          type: ["number", "null"]
+        tpPrice:
+          type: ["number", "null"]
+        lotSize:
+          type: ["number", "null"]
+        direction:
+          type: string
+          enum: [Long, Short]
+        status:
+          type: string
+          enum: [Pending, Running, TP Hit, SL Hit]
+        closePrice:
+          type: ["number", "null"]
+        pips:
+          type: ["number", "null"]
+        pnl:
+          type: ["number", "null"]
+        tags:
+          type: ["string", "null"]
+        session:
+          type: ["string", "null"]
+          enum: [Asia, London, New York]
+        notes:
+          type: ["string", "null"]
+        lossReason:
+          type: ["string", "null"]
+          description: Mistake Journal — reason for loss
+
+    TradeUpdate:
+      type: object
+      properties:
+        balance:
+          type: ["number", "null"]
+        riskPct:
+          type: ["number", "null"]
+        entryPrice:
+          type: ["number", "null"]
+        slPrice:
+          type: ["number", "null"]
+        tpPrice:
+          type: ["number", "null"]
+        lotSize:
+          type: ["number", "null"]
+        direction:
+          type: string
+          enum: [Long, Short]
+        status:
+          type: string
+          enum: [Pending, Running, TP Hit, SL Hit]
+        closePrice:
+          type: ["number", "null"]
+        pips:
+          type: ["number", "null"]
+        pnl:
+          type: ["number", "null"]
+        tags:
+          type: ["string", "null"]
+        session:
+          type: ["string", "null"]
+          enum: [Asia, London, New York]
+        notes:
+          type: ["string", "null"]
+        lossReason:
+          type: ["string", "null"]
+          description: Mistake Journal — reason for loss
+
+    # DASHBOARD
+    DailyStats:
+      type: object
+      required: [date, totalTrades, wins, losses, winRate, plusPips, minusPips, netPips, startBalance, currentBalance, growthPct]
+      properties:
+        date:
+          type: string
+        totalTrades:
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        winRate:
+          type: number
+        plusPips:
+          type: number
+        minusPips:
+          type: number
+        netPips:
+          type: number
+        startBalance:
+          type: number
+        currentBalance:
+          type: number
+        growthPct:
+          type: number
+        isOffDay:
+          type: boolean
+
+    WeeklyStats:
+      type: object
+      required: [weekNumber, totalTrades, wins, losses, winRate, winPips, lossPips, netPips, startBalance, endBalance, growthPct, workDays, offDays]
+      properties:
+        weekNumber:
+          type: integer
+        totalTrades:
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        winRate:
+          type: number
+        winPips:
+          type: number
+        lossPips:
+          type: number
+        netPips:
+          type: number
+        startBalance:
+          type: number
+        endBalance:
+          type: number
+        growthPct:
+          type: number
+        workDays:
+          type: integer
+        offDays:
+          type: integer
+        dateRange:
+          type: string
+
+    DashboardSummary:
+      type: object
+      required: [currentBalance, monthlyGrowthPct, totalTradesThisMonth, monthlyWinRate, licenseStatus]
+      properties:
+        currentBalance:
+          type: number
+        monthlyGrowthPct:
+          type: number
+        totalTradesThisMonth:
+          type: integer
+        monthlyWinRate:
+          type: number
+        licenseStatus:
+          type: string
+        licenseExpiresAt:
+          type: ["string", "null"]
+        daysRemaining:
+          type: ["integer", "null"]
+
+    # REPORTS
+    WeeklyReportRow:
+      type: object
+      required: [weekNumber, totalTrades, wins, losses, winRate, winPips, lossPips, netPips, startBalance, endBalance]
+      properties:
+        weekNumber:
+          type: integer
+        dateRange:
+          type: string
+        totalTrades:
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        winRate:
+          type: number
+        winPips:
+          type: number
+        lossPips:
+          type: number
+        netPips:
+          type: number
+        startBalance:
+          type: number
+        endBalance:
+          type: number
+        growthPct:
+          type: number
+        workDays:
+          type: integer
+        offDays:
+          type: integer
+
+    MonthlyReportRow:
+      type: object
+      required: [month, year, totalTrades, wins, losses, winRate, netPips, startBalance, endBalance, growthPct]
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        monthName:
+          type: string
+        totalTrades:
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        winRate:
+          type: number
+        winPips:
+          type: number
+        lossPips:
+          type: number
+        netPips:
+          type: number
+        startBalance:
+          type: number
+        endBalance:
+          type: number
+        growthPct:
+          type: number
+        workDays:
+          type: integer
+        offDays:
+          type: integer
+
+    MonthResetInput:
+      type: object
+      properties:
+        note:
+          type: string
+
+    # INVESTORS
+    Investor:
+      type: object
+      required: [id, name, investmentAmount, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        investmentAmount:
+          type: number
+        createdAt:
+          type: string
+        sharePct:
+          type: ["number", "null"]
+        pnlShare:
+          type: ["number", "null"]
+        totalBalance:
+          type: ["number", "null"]
+        growthPct:
+          type: ["number", "null"]
+
+    InvestorInput:
+      type: object
+      required: [name, investmentAmount]
+      properties:
+        name:
+          type: string
+        investmentAmount:
+          type: number
+
+    InvestorUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        investmentAmount:
+          type: number
+
+    ShareCalculation:
+      type: object
+      required: [totalInvestment, currentBalance, totalPnL, investors]
+      properties:
+        totalInvestment:
+          type: number
+        currentBalance:
+          type: number
+        totalPnL:
+          type: number
+        investors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Investor"
+
+    # SETTINGS
+    TelegramSettings:
+      type: object
+      required: [id, botToken, chatId, groupId, dailyEnabled, weeklyEnabled, monthlyEnabled]
+      properties:
+        id:
+          type: integer
+        botToken:
+          type: string
+          description: "Example: 1234567890:AAGzSIEPVuSjyz1j_36ER40BLpR71nJXUl"
+        chatId:
+          type: string
+          description: "Your personal Telegram chat ID"
+        groupId:
+          type: string
+          description: "Telegram group ID (starts with -100)"
+        dailyEnabled:
+          type: boolean
+        weeklyEnabled:
+          type: boolean
+        monthlyEnabled:
+          type: boolean
+        riskAlertEnabled:
+          type: boolean
+        winThresholdPct:
+          type: number
+          description: "Send win alert when growth >= this % (default 10)"
+        lossThresholdPct:
+          type: number
+          description: "Send loss alert when drawdown >= this % (default 6)"
+        notifyLanguage:
+          type: string
+          enum: [en, bn]
+          description: "Telegram notification text language: 'en' (pure English) or 'bn' (current Bengali-mixed templates, default)"
+
+    TelegramSettingsInput:
+      type: object
+      properties:
+        botToken:
+          type: string
+        chatId:
+          type: string
+        groupId:
+          type: string
+        dailyEnabled:
+          type: boolean
+        weeklyEnabled:
+          type: boolean
+        monthlyEnabled:
+          type: boolean
+        riskAlertEnabled:
+          type: boolean
+        winThresholdPct:
+          type: number
+        lossThresholdPct:
+          type: number
+        notifyLanguage:
+          type: string
+          enum: [en, bn]
+
+    AccountSettings:
+      type: object
+      required: [id, timezone]
+      properties:
+        id:
+          type: integer
+        timezone:
+          type: string
+        defaultRiskPct:
+          type: number
+        dailyTargetPct:
+          type: number
+          description: "Daily profit target in % (default 2)"
+        nickname:
+          type: string
+          nullable: true
+          description: "User-chosen display name shown in the terminal header"
+
+    AccountSettingsInput:
+      type: object
+      properties:
+        timezone:
+          type: string
+        defaultRiskPct:
+          type: number
+        dailyTargetPct:
+          type: number
+        nickname:
+          type: string
+          nullable: true
+          description: "User-chosen display name"
+
+    # ME
+    MeAdminStatus:
+      type: object
+      required: [isAdmin]
+      properties:
+        isAdmin:
+          type: boolean
+
+    # ADMIN
+    UserRole:
+      type: string
+      enum: [user, owner, admin, moderator, support, viewer]
+      description: >
+        Staff role. "user" = regular account, no admin panel access.
+        "owner" is reserved for the account owner and cannot be reassigned.
+
+    RolePermissions:
+      type: object
+      required: [role, description, permissions]
+      properties:
+        role:
+          $ref: "#/components/schemas/UserRole"
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+
+    SetUserRoleInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/UserRole"
+
+    AdminUser:
+      type: object
+      required: [userId, email, role, createdAt, hasLicense, isLicenseActive, totalTrades]
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        createdAt:
+          type: string
+        lastLoginAt:
+          type: ["string", "null"]
+          description: Timestamp of the user's most recent login
+        hasLicense:
+          type: boolean
+        isLicenseActive:
+          type: boolean
+        licenseExpiresAt:
+          type: ["string", "null"]
+        daysRemaining:
+          type: ["integer", "null"]
+        totalTrades:
+          type: integer
+        licenseCode:
+          type: ["string", "null"]
+          description: The actual subscription/license key used by this user
+        licenseTransactionCode:
+          type: ["string", "null"]
+          description: Transaction code associated with the license
+        licenseDurationDays:
+          type: ["integer", "null"]
+          description: Total duration in days of the current license
+        investorName:
+          type: ["string", "null"]
+          description: Primary investor name entered by the user
+        latestBalance:
+          type: ["string", "null"]
+          description: Most recent account balance from trade entries
+        totalInvestment:
+          type: ["string", "null"]
+          description: Sum of all investor investment amounts for this user
+
+    AdminStats:
+      type: object
+      required: [totalUsers, activeUsers, totalLicenses, activeLicenses]
+      properties:
+        totalUsers:
+          type: integer
+        activeUsers:
+          type: integer
+        totalLicenses:
+          type: integer
+        activeLicenses:
+          type: integer
+        expiredLicenses:
+          type: integer
+        revokedLicenses:
+          type: integer
+
+    # NOTIFICATIONS
+    AppNotification:
+      type: object
+      required: [id, userId, type, title, body, isRead, isSeen, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        type:
+          type: string
+          description: "daily | weekly | monthly | win_alert | loss_alert | off_day | admin"
+        title:
+          type: string
+        body:
+          type: string
+        isRead:
+          type: boolean
+          description: "Backend/Telegram-sync flag, auto-true on creation."
+        isSeen:
+          type: boolean
+          description: "UI-only flag — false until the user opens this notification in-app. Drives the unread badge count."
+        createdAt:
+          type: string
+
+    NotificationBroadcastInput:
+      type: object
+      required: [title, body]
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+
+    NotificationTargetedInput:
+      type: object
+      required: [title, body, userIds]
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+        userIds:
+          type: array
+          items:
+            type: string
+          description: Clerk user IDs to send this notification to
+
+    NotificationUnreadCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+
+    # MISTAKE JOURNAL
+    MistakeReasonCount:
+      type: object
+      required: [reason, count, percentage]
+      properties:
+        reason:
+          type: string
+        count:
+          type: integer
+        percentage:
+          type: number
+
+    MistakeReport:
+      type: object
+      required: [month, year, totalLosses, taggedLosses, reasons]
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+        totalLosses:
+          type: integer
+        taggedLosses:
+          type: integer
+        reasons:
+          type: array
+          items:
+            $ref: "#/components/schemas/MistakeReasonCount"
+
+    # ACHIEVEMENTS
+    AchievementBadge:
+      type: object
+      required: [id, title, description, earned, icon]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        earned:
+          type: boolean
+        icon:
+          type: string
+        earnedAt:
+          type: ["string", "null"]
+        progress:
+          type: ["number", "null"]
+          description: 0-100 progress percentage (for locked badges)
+        target:
+          type: ["integer", "null"]
+
+    AchievementsReport:
+      type: object
+      required: [badges, totalEarned]
+      properties:
+        badges:
+          type: array
+          items:
+            $ref: "#/components/schemas/AchievementBadge"
+        totalEarned:
+          type: integer
+
+    # DAY OF WEEK HEATMAP
+    DayOfWeekStat:
+      type: object
+      required: [day, dayIndex, tradeCount, wins, losses, totalPnl, avgPnl, winRate]
+      properties:
+        day:
+          type: string
+          description: "Day name: Mon, Tue, Wed, Thu, Fri, Sat, Sun"
+        dayIndex:
+          type: integer
+          description: "0=Sun, 1=Mon, ..., 6=Sat"
+        tradeCount:
+          type: integer
+        wins:
+          type: integer
+        losses:
+          type: integer
+        totalPnl:
+          type: number
+        avgPnl:
+          type: number
+        winRate:
+          type: number
+          description: "0-1"
+
+    # TRADING SCORE
+    TradingScore:
+      type: object
+      required: [grade, score, winRate, avgRR, consistencyPct, totalTrades, weekStart, weekEnd]
+      properties:
+        grade:
+          type: string
+          enum: [A, B, C, D, F]
+          description: Overall weekly grade (A=90+, B=75+, C=60+, D=45+, F=below 45)
+        score:
+          type: number
+          description: Numeric score 0-100
+        winRate:
+          type: number
+          description: Win rate 0-1
+        avgRR:
+          type: number
+          description: Average risk:reward ratio on closed trades
+        consistencyPct:
+          type: number
+          description: Trading day consistency — trading days / available weekdays
+        totalTrades:
+          type: integer
+        weekStart:
+          type: string
+        weekEnd:
+          type: string
+        previousGrade:
+          type: ["string", "null"]
+        gradeChange:
+          type: ["string", "null"]
+          description: "up | down | same | null"
+
+    GoldPrice:
+      type: object
+      required: [price, change, changePct, high, low, open, prevClose, volume, timestamp, currency]
+      properties:
+        price:
+          type: number
+        change:
+          type: number
+        changePct:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        open:
+          type: number
+        prevClose:
+          type: number
+        volume:
+          type: number
+        timestamp:
+          type: integer
+        currency:
+          type: string
+
+    FeedbackInput:
+      type: object
+      required: [rating]
+      properties:
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+          nullable: true
+
+    FeedbackResponse:
+      type: object
+      required: [id, userId, email, rating, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        email:
+          type: string
+        rating:
+          type: integer
+        comment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    # SYSTEM SETTINGS
+    SystemSettings:
+      type: object
+      required: [licenseEnforcementEnabled, trialModeEnabled, trialDurationDays]
+      properties:
+        licenseEnforcementEnabled:
+          type: boolean
+          description: "When false, all users can access the terminal without a license"
+        trialModeEnabled:
+          type: boolean
+          description: "When true, users can self-activate a free trial"
+        trialDurationDays:
+          type: integer
+          description: "Number of days for the free trial (admin-configurable)"
+
+    SystemSettingsInput:
+      type: object
+      properties:
+        licenseEnforcementEnabled:
+          type: boolean
+        trialModeEnabled:
+          type: boolean
+        trialDurationDays:
+          type: integer
+
+    # ACTIVITY LOG
+    UserActivity:
+      type: object
+      required: [userId, email, createdAt, totalTrades, isLicenseActive, hasLicense]
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        createdAt:
+          type: string
+        lastLoginAt:
+          type: ["string", "null"]
+        totalTrades:
+          type: integer
+        isLicenseActive:
+          type: boolean
+        hasLicense:
+          type: boolean
+        licenseExpiresAt:
+          type: ["string", "null"]
+
+    # CONTACT
+    ContactInput:
+      type: object
+      required: [name, phone]
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        message:
+          type: ["string", "null"]
+
+    ContactResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        attemptsLeft:
+          type: ["integer", "null"]
+
+    ContactAttemptRecord:
+      type: object
+      required: [ip, count, lastAttemptAt]
+      properties:
+        ip:
+          type: string
+        count:
+          type: integer
+        lastAttemptAt:
+          type: string
+
+    ContactAttemptsResponse:
+      type: object
+      required: [limit, records]
+      properties:
+        limit:
+          type: integer
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContactAttemptRecord"
+
+    ContactConfig:
+      type: object
+      required: [limit]
+      properties:
+        limit:
+          type: integer
+          description: Max contact attempts allowed per IP
+
+    ContactConfigInput:
+      type: object
+      required: [limit]
+      properties:
+        limit:
+          type: integer
+
+    # OFFERS
+    Offer:
+      type: object
+      required: [id, title, isOn, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        badge:
+          type: ["string", "null"]
+          description: Short badge label e.g. "HOT", "LIMITED"
+        price:
+          type: ["number", "null"]
+        originalPrice:
+          type: ["number", "null"]
+        isOn:
+          type: boolean
+          description: Whether the offer is currently active/visible to users
+        createdAt:
+          type: string
+
+    OfferInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        badge:
+          type: ["string", "null"]
+        price:
+          type: ["number", "null"]
+        originalPrice:
+          type: ["number", "null"]
+        isOn:
+          type: boolean
+
+    # SUPPORT
+    SupportMessageInput:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    SupportMessageResponse:
+      type: object
+      required: [id, message, createdAt]
+      properties:
+        id:
+          type: integer
+        message:
+          type: string
+        createdAt:
+          type: string
+
+    SupportMessage:
+      type: object
+      required: [id, userId, email, message, isRead, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        email:
+          type: string
+        message:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string

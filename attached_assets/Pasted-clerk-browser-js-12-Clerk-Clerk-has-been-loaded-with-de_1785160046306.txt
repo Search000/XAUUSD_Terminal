@@ -1,0 +1,125 @@
+clerk.browser.js:12 Clerk: Clerk has been loaded with development keys. Development instances have strict usage limits and should not be used when deploying your application to production. Learn more: https://clerk.com/docs/deployments/overview
+eT @ clerk.browser.js:12
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+xauusd-terminal-api.onrender.com/api/investors/shares:1  Failed to load resource: net::ERR_HTTP2_SERVER_REFUSED_STREAM
+xauusd-terminal-api.onrender.com/api/licenses/status:1  Failed to load resource: net::ERR_HTTP2_SERVER_REFUSED_STREAM
+xauusd-terminal-api.onrender.com/api/notifications:1  Failed to load resource: net::ERR_HTTP2_SERVER_REFUSED_STREAM
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+trades:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+reports:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+score:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+index-rsXXVOqZ.js:9  GET https://xauusd-terminal-api.onrender.com/api/dashboard/weekly net::ERR_FAILED
+Jr @ index-rsXXVOqZ.js:9
+await in Jr
+yG @ index-rsXXVOqZ.js:9
+queryFn @ index-rsXXVOqZ.js:9
+i @ index-rsXXVOqZ.js:9
+A @ index-rsXXVOqZ.js:9
+start @ index-rsXXVOqZ.js:9
+fetch @ index-rsXXVOqZ.js:9
+#h @ index-rsXXVOqZ.js:9
+onSubscribe @ index-rsXXVOqZ.js:9
+subscribe @ index-rsXXVOqZ.js:9
+(anonymous) @ index-rsXXVOqZ.js:9
+Nu @ index-rsXXVOqZ.js:8
+km @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+Al @ index-rsXXVOqZ.js:8
+Sk @ index-rsXXVOqZ.js:8
+zk @ index-rsXXVOqZ.js:8
+j0 @ index-rsXXVOqZ.js:8
+Uk @ index-rsXXVOqZ.js:8
+Fk @ index-rsXXVOqZ.js:8
+Ck @ index-rsXXVOqZ.js:8
+Tk @ index-rsXXVOqZ.js:8
+Yk @ index-rsXXVOqZ.js:8
+Mm @ index-rsXXVOqZ.js:8
+Wk @ index-rsXXVOqZ.js:8
+(anonymous) @ index-rsXXVOqZ.js:8
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+trades:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+reports:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+investors:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+score:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+settings:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+score:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+investors:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+investors:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+investors:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+reports:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+reports:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+reports:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+reports:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+trades:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.
+dashboard:1 EventSource's response has a MIME type ("text/html") that is not "text/event-stream". Aborting the connection.

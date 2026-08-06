@@ -1,0 +1,74 @@
+services:
+  # ── API Server (Node.js Web Service) ──────────────────────────────────────
+  - type: web
+    name: xauusd-terminal-api
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: >
+      npx --yes pnpm@10.26.1 install --frozen-lockfile &&
+      npx --yes pnpm@10.26.1 --filter @workspace/api-server run build
+    startCommand: >
+      npx --yes pnpm@10.26.1 --filter @workspace/api-server run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: false
+        value: 10000
+      - key: DATABASE_URL
+        sync: false          # set manually in Render dashboard
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: NEWS_API_KEY
+        sync: false          # NewsAPI.org key for /api/xauusd/news — falls back to static feed if unset
+      - key: FRED_API_KEY
+        sync: false          # St. Louis Fed FRED key for /api/xauusd/calendar — 100% free, unlimited, get one at fred.stlouisfed.org/docs/api/api_key.html
+      - key: SESSION_SECRET
+        sync: false          # REQUIRED — derives the chat message encryption key. Server refuses to start in production without this set. Generate e.g. `openssl rand -hex 32`.
+      - key: ALLOWED_ORIGINS
+        sync: false          # REQUIRED in production — comma-separated list of frontend origins allowed for CORS, e.g. https://xauusd-terminal-journal.onrender.com,https://xauusd-terminal-admin.onrender.com
+
+  # ── Trading Journal Frontend (Static Site) ────────────────────────────────
+  - type: web
+    name: xauusd-terminal-journal
+    runtime: static
+    region: singapore
+    plan: free
+    buildCommand: >
+      npx --yes pnpm@10.26.1 install --frozen-lockfile &&
+      PORT=3000 BASE_PATH=/ npx --yes pnpm@10.26.1 --filter @workspace/trading-journal run build
+    staticPublishPath: artifacts/trading-journal/dist/public
+    envVars:
+      - key: VITE_API_URL
+        sync: false          # set to your API server URL, e.g. https://xauusd-terminal-api-uq6u.onrender.com
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ── Admin Panel Frontend (Static Site) ─────────────────────────────────────
+  - type: web
+    name: xauusd-terminal-admin
+    runtime: static
+    region: singapore
+    plan: free
+    buildCommand: >
+      npx --yes pnpm@10.26.1 install --frozen-lockfile &&
+      PORT=3000 BASE_PATH=/ npx --yes pnpm@10.26.1 --filter @workspace/admin-panel run build
+    staticPublishPath: artifacts/admin-panel/dist/public
+    envVars:
+      - key: VITE_API_URL
+        sync: false          # same API server URL as the journal frontend
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    # Remember to add this service's URL to the API's ALLOWED_ORIGINS env var,
+    # and to ADMIN_EMAILS for whichever account(s) should have admin access.
