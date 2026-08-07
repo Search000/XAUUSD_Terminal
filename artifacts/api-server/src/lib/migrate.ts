@@ -232,6 +232,18 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE telegram_settings ADD COLUMN IF NOT EXISTS notify_language TEXT NOT NULL DEFAULT 'bn';
       UPDATE users SET role = 'admin' WHERE is_admin = TRUE AND role = 'user';
     `);
+    // Terminal Assistant (AI chat) history — separate from human support chat above
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assistant_messages (
+        id         SERIAL PRIMARY KEY,
+        user_id    TEXT NOT NULL,
+        role       TEXT NOT NULL,
+        content    TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS assistant_messages_user_id_idx ON assistant_messages (user_id);
+    `);
         logger.info("Migrations complete");
   } catch (err) {
     logger.error({ err }, "Migration failed");
