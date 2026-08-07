@@ -30,6 +30,7 @@ import { NicknameModal } from "./NicknameModal";
 import { TrialCountdownBanner } from "./TrialCountdownBanner";
 import { FeedbackModal } from "./FeedbackModal";
 import { RequestLicenseModal } from "./RequestLicenseModal";
+import { HelpChatWidget } from "./HelpChatWidget";
 
 const FEEDBACK_KEY = "trial_feedback_shown";
 
@@ -250,6 +251,11 @@ export function AppLayout({
             );
           })}
         </nav>
+
+        {/* Help chat trigger — fills the empty sidebar space */}
+        <div className="px-1 sm:px-2 pb-2 shrink-0">
+          <HelpChatWidget />
+        </div>
 
         {/* Bottom user section */}
         <div className="border-t border-border p-2 sm:p-3 flex flex-col gap-2 shrink-0">
