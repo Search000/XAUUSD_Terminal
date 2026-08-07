@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
 import { useAuth } from "@clerk/react";
+import { Link as WouterLink } from "wouter";
 import { AppLayout } from "@/components/AppLayout";
 import { API_BASE_URL } from "@/lib/apiConfig";
 
@@ -15,6 +16,35 @@ const DEFAULT_GREETING: ChatMsg = {
   role: "assistant",
   content: "Hi! I'm here to help with the terminal. Ask me anything about how to use it.",
 };
+
+/** Renders text with markdown-style [label](/path) links as clickable in-app links (SPA nav, no reload). */
+function MessageContent({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  const linkRegex = /\[([^\]]+)\]\((\/[a-zA-Z0-9\-_/]*)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = linkRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const [, label, href] = match;
+    parts.push(
+      <WouterLink key={key++} href={href}>
+        <span className="text-primary underline underline-offset-2 hover:text-primary/80 cursor-pointer">
+          {label}
+        </span>
+      </WouterLink>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <>{parts}</>;
+}
 
 export default function HelpPage() {
   const { getToken, isLoaded } = useAuth();
@@ -158,7 +188,7 @@ export default function HelpPage() {
                     : "self-start bg-secondary/50 text-foreground border border-border"
                 }`}
               >
-                {m.content}
+                {m.role === "assistant" ? <MessageContent text={m.content} /> : m.content}
               </div>
             ))
           )}
