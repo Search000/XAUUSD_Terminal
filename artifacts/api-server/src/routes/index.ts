@@ -19,6 +19,7 @@ import mistakesRouter from "./mistakes";
 import heatmapRouter from "./heatmap";
 import feedbackRouter from "./feedback";
 import supportRouter from "./support";
+import assistantRouter from "./assistant";
 
 const router = Router();
 
@@ -42,5 +43,6 @@ router.use(mistakesRouter);
 router.use(heatmapRouter);
 router.use(feedbackRouter);
 router.use(supportRouter);
+router.use(assistantRouter);
 
 export default router;

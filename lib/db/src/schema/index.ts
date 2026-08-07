@@ -9,3 +9,4 @@ export * from "./notifications";
 export * from "./feedback";
 export * from "./support";
 export * from "./chat";
+export * from "./assistantMessages";

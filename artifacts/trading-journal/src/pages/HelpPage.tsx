@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
-import { useUser } from "@clerk/react";
+import { useAuth } from "@clerk/react";
 import { AppLayout } from "@/components/AppLayout";
+import { API_BASE_URL } from "@/lib/apiConfig";
 
 const CHAT_API_URL = "https://xauusd-chatbot.searchoption00.workers.dev/chat";
 
@@ -15,57 +16,66 @@ const DEFAULT_GREETING: ChatMsg = {
   content: "Hi! I'm here to help with the terminal. Ask me anything about how to use it.",
 };
 
-function loadHistory(userId: string | null | undefined): ChatMsg[] {
-  if (!userId) return [DEFAULT_GREETING];
-  try {
-    const raw = localStorage.getItem(`help_chat_${userId}`);
-    if (!raw) return [DEFAULT_GREETING];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_GREETING];
-  } catch {
-    return [DEFAULT_GREETING];
-  }
-}
-
 export default function HelpPage() {
-  const { user, isLoaded } = useUser();
-  const userId = user?.id;
+  const { getToken, isLoaded } = useAuth();
 
   const [messages, setMessages] = useState<ChatMsg[]>([DEFAULT_GREETING]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const hasLoadedRef = useRef(false);
 
-  // Load this user's saved conversation once Clerk has resolved the user id
+  // Load this user's saved conversation from the server on mount
   useEffect(() => {
-    if (!isLoaded || hasLoadedRef.current) return;
-    setMessages(loadHistory(userId));
-    hasLoadedRef.current = true;
-  }, [isLoaded, userId]);
-
-  // Persist conversation for this user id whenever it changes
-  useEffect(() => {
-    if (!userId || !hasLoadedRef.current) return;
-    try {
-      localStorage.setItem(`help_chat_${userId}`, JSON.stringify(messages));
-    } catch {
-      // ignore storage errors (e.g. quota exceeded, private mode)
-    }
-  }, [messages, userId]);
+    if (!isLoaded) return;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${API_BASE_URL}/api/assistant/history`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const history: ChatMsg[] = await res.json();
+          setMessages(history.length > 0 ? history : [DEFAULT_GREETING]);
+        }
+      } catch {
+        // fall back to just the greeting if history can't be loaded
+      } finally {
+        setIsHistoryLoading(false);
+      }
+    })();
+  }, [isLoaded, getToken]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  const saveMessage = async (msg: ChatMsg) => {
+    try {
+      const token = await getToken();
+      await fetch(`${API_BASE_URL}/api/assistant/history`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(msg),
+      });
+    } catch {
+      // non-critical — conversation still works locally even if a save fails
+    }
+  };
+
   const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
 
-    const newMessages: ChatMsg[] = [...messages, { role: "user", content: trimmed }];
+    const userMsg: ChatMsg = { role: "user", content: trimmed };
+    const newMessages: ChatMsg[] = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
     setIsLoading(true);
+    saveMessage(userMsg);
 
     try {
       const res = await fetch(CHAT_API_URL, {
@@ -77,15 +87,18 @@ export default function HelpPage() {
         }),
       });
       const data = await res.json();
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.reply || "Sorry, I couldn't process that." },
-      ]);
+      const replyMsg: ChatMsg = {
+        role: "assistant",
+        content: data.reply || "Sorry, I couldn't process that.",
+      };
+      setMessages((prev) => [...prev, replyMsg]);
+      saveMessage(replyMsg);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Connection issue. Please try again in a moment." },
-      ]);
+      const errMsg: ChatMsg = {
+        role: "assistant",
+        content: "Connection issue. Please try again in a moment.",
+      };
+      setMessages((prev) => [...prev, errMsg]);
     } finally {
       setIsLoading(false);
     }
@@ -107,18 +120,25 @@ export default function HelpPage() {
           ref={scrollRef}
           className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 flex flex-col gap-3 max-w-3xl w-full mx-auto"
         >
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`max-w-[85%] text-sm leading-relaxed rounded-lg px-3.5 py-2.5 whitespace-pre-wrap ${
-                m.role === "user"
-                  ? "self-end bg-primary/15 text-foreground border border-primary/20"
-                  : "self-start bg-secondary/50 text-foreground border border-border"
-              }`}
-            >
-              {m.content}
+          {isHistoryLoading ? (
+            <div className="self-center flex items-center gap-2 text-sm text-muted-foreground px-3.5 py-2.5">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading conversation...
             </div>
-          ))}
+          ) : (
+            messages.map((m, i) => (
+              <div
+                key={i}
+                className={`max-w-[85%] text-sm leading-relaxed rounded-lg px-3.5 py-2.5 whitespace-pre-wrap ${
+                  m.role === "user"
+                    ? "self-end bg-primary/15 text-foreground border border-primary/20"
+                    : "self-start bg-secondary/50 text-foreground border border-border"
+                }`}
+              >
+                {m.content}
+              </div>
+            ))
+          )}
           {isLoading && (
             <div className="self-start flex items-center gap-2 text-sm text-muted-foreground px-3.5 py-2.5">
               <Loader2 className="w-4 h-4 animate-spin" />
