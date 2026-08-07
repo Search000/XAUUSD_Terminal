@@ -1,10 +1,11 @@
 import { Router } from "express";
+import { fetchWithTimeout } from "../lib/fetchWithTimeout";
 
 const router = Router();
 
 router.get("/gold-price", async (req, res) => {
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       "https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1m&range=1d",
       {
         headers: {
@@ -13,6 +14,7 @@ router.get("/gold-price", async (req, res) => {
           Accept: "application/json",
         },
       },
+      10_000,
     );
     if (!response.ok) throw new Error(`Price feed responded ${response.status}`);
     const data = (await response.json()) as {

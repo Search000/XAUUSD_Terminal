@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { logger } from "../lib/logger";
 import { liveGoldFeed, LiveGoldFeed, type LiveMetalTick, type MetalSymbol } from "../lib/liveGoldFeed";
+import { fetchWithTimeout } from "../lib/fetchWithTimeout";
 
 const router = Router();
 
@@ -2011,7 +2012,7 @@ const CFTC_COT_URL =
 
 async function fetchCotNetLongs(): Promise<{ netLongs: number; asOf: string } | null> {
   try {
-    const res = await fetch(CFTC_COT_URL, { headers: { Accept: "application/json" } });
+    const res = await fetchWithTimeout(CFTC_COT_URL, { headers: { Accept: "application/json" } }, 10_000);
     if (!res.ok) return null;
     const rows = await res.json();
     const row = Array.isArray(rows) ? rows[0] : null;
@@ -2043,7 +2044,7 @@ router.get("/xauusd/cot-history", async (_req, res) => {
   const now = Date.now();
   if (cotHistoryCache && now - cotHistoryCacheAt < COT_HISTORY_TTL) { res.json(cotHistoryCache); return; }
   try {
-    const cftcRes = await fetch(CFTC_COT_HISTORY_URL, { headers: { Accept: "application/json" } });
+    const cftcRes = await fetchWithTimeout(CFTC_COT_HISTORY_URL, { headers: { Accept: "application/json" } }, 10_000);
     if (!cftcRes.ok) { res.status(502).json({ error: "CFTC data unavailable" }); return; }
     const rows: any[] = (await cftcRes.json()) as any[];
 
@@ -2075,9 +2076,9 @@ router.get("/xauusd/cot-history", async (_req, res) => {
 
 async function fetchFedFundsRate(): Promise<number | null> {
   try {
-    const res = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS", {
+    const res = await fetchWithTimeout("https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS", {
       headers: { "User-Agent": "Mozilla/5.0" },
-    });
+    }, 10_000);
     if (!res.ok) return null;
     const csv = await res.text();
     const lines = csv.trim().split("\n").slice(1);
