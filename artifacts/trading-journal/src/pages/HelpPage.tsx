@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
+import { useUser } from "@clerk/react";
 import { AppLayout } from "@/components/AppLayout";
 
 const CHAT_API_URL = "https://xauusd-chatbot.searchoption00.workers.dev/chat";
@@ -9,16 +10,49 @@ type ChatMsg = {
   content: string;
 };
 
+const DEFAULT_GREETING: ChatMsg = {
+  role: "assistant",
+  content: "Hi! I'm here to help with the terminal. Ask me anything about how to use it.",
+};
+
+function loadHistory(userId: string | null | undefined): ChatMsg[] {
+  if (!userId) return [DEFAULT_GREETING];
+  try {
+    const raw = localStorage.getItem(`help_chat_${userId}`);
+    if (!raw) return [DEFAULT_GREETING];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_GREETING];
+  } catch {
+    return [DEFAULT_GREETING];
+  }
+}
+
 export default function HelpPage() {
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    {
-      role: "assistant",
-      content: "Hi! I'm here to help with the terminal. Ask me anything about how to use it.",
-    },
-  ]);
+  const { user, isLoaded } = useUser();
+  const userId = user?.id;
+
+  const [messages, setMessages] = useState<ChatMsg[]>([DEFAULT_GREETING]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const hasLoadedRef = useRef(false);
+
+  // Load this user's saved conversation once Clerk has resolved the user id
+  useEffect(() => {
+    if (!isLoaded || hasLoadedRef.current) return;
+    setMessages(loadHistory(userId));
+    hasLoadedRef.current = true;
+  }, [isLoaded, userId]);
+
+  // Persist conversation for this user id whenever it changes
+  useEffect(() => {
+    if (!userId || !hasLoadedRef.current) return;
+    try {
+      localStorage.setItem(`help_chat_${userId}`, JSON.stringify(messages));
+    } catch {
+      // ignore storage errors (e.g. quota exceeded, private mode)
+    }
+  }, [messages, userId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
