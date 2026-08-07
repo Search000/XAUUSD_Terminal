@@ -124,15 +124,19 @@ router.post("/assistant/history", requireAuth, asyncHandler(async (req, res) => 
   res.json({ success: true, id: inserted?.id });
 }));
 
-/** PATCH /api/assistant/history/:id/feedback — thumbs up/down on one assistant message */
+/** PATCH /api/assistant/history/:id/feedback — thumbs up/down (+ optional note) on one assistant message */
 router.patch("/assistant/history/:id/feedback", requireAuth, asyncHandler(async (req, res) => {
   const { userId } = getAuth(req);
   if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const id = Number(req.params.id);
-  const { rating } = req.body ?? {};
+  const { rating, note } = req.body ?? {};
   if (!Number.isInteger(id) || (rating !== "up" && rating !== "down" && rating !== null)) {
     res.status(400).json({ error: "Invalid feedback" });
+    return;
+  }
+  if (note !== undefined && note !== null && typeof note !== "string") {
+    res.status(400).json({ error: "Invalid note" });
     return;
   }
 
@@ -142,7 +146,10 @@ router.patch("/assistant/history/:id/feedback", requireAuth, asyncHandler(async 
     return;
   }
 
-  await db.update(assistantMessagesTable).set({ feedback: rating }).where(eq(assistantMessagesTable.id, id));
+  await db
+    .update(assistantMessagesTable)
+    .set({ feedback: rating, feedbackNote: rating === null ? null : (note ?? null) })
+    .where(eq(assistantMessagesTable.id, id));
   res.json({ success: true });
 }));
 

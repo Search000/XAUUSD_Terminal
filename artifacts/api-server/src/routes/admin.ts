@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, licensesTable, tradesTable, investorsTable, systemSettingsTable, notificationsTable } from "@workspace/db";
-import { eq, and, count, sum, desc, or } from "drizzle-orm";
+import { usersTable, licensesTable, tradesTable, investorsTable, systemSettingsTable, notificationsTable, assistantMessagesTable } from "@workspace/db";
+import { eq, and, count, sum, desc, or, isNotNull } from "drizzle-orm";
 import { requireAuth, ADMIN_EMAILS } from "../lib/auth";
 import { requirePermission, isStaffRole, ROLE_PERMISSIONS, ROLE_DESCRIPTIONS } from "../lib/permissions";
 import { paramToString } from "../lib/params";
@@ -388,6 +388,42 @@ router.post("/admin/notifications/send-to-users", requireAuth, requirePermission
   });
 
   res.status(201).json({ sent: inserts.length });
+}));
+
+/** GET /api/admin/assistant-feedback — all rated Terminal Assistant messages, newest first */
+router.get("/admin/assistant-feedback", requireAuth, requirePermission("manage_feedback"), asyncHandler(async (_req, res) => {
+  const rows = await db
+    .select({
+      id: assistantMessagesTable.id,
+      userId: assistantMessagesTable.userId,
+      content: assistantMessagesTable.content,
+      feedback: assistantMessagesTable.feedback,
+      feedbackNote: assistantMessagesTable.feedbackNote,
+      createdAt: assistantMessagesTable.createdAt,
+    })
+    .from(assistantMessagesTable)
+    .where(isNotNull(assistantMessagesTable.feedback))
+    .orderBy(desc(assistantMessagesTable.createdAt))
+    .limit(200);
+
+  const userIds = [...new Set(rows.map((r) => r.userId))];
+  const users = userIds.length
+    ? await db.select({ userId: usersTable.userId, email: usersTable.email }).from(usersTable)
+        .where(or(...userIds.map((id) => eq(usersTable.userId, id))))
+    : [];
+  const emailByUserId = new Map(users.map((u) => [u.userId, u.email]));
+
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      userEmail: emailByUserId.get(r.userId) ?? "unknown",
+      content: r.content,
+      feedback: r.feedback,
+      feedbackNote: r.feedbackNote,
+      createdAt: r.createdAt,
+    })),
+  );
 }));
 
 export default router;

@@ -253,6 +253,7 @@ export async function runMigrations(): Promise<void> {
       );
 
       ALTER TABLE assistant_messages ADD COLUMN IF NOT EXISTS feedback TEXT;
+      ALTER TABLE assistant_messages ADD COLUMN IF NOT EXISTS feedback_note TEXT;
     `);
         logger.info("Migrations complete");
   } catch (err) {

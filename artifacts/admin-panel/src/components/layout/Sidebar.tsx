@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useUser, useClerk } from "@clerk/react";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
-import { LayoutDashboard, Key, Users, LogOut, Tag, Settings2, Phone, Bell, Activity, Star, MessageCircle } from "lucide-react";
+import { LayoutDashboard, Key, Users, LogOut, Tag, Settings2, Phone, Bell, Activity, Star, MessageCircle, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -14,6 +14,7 @@ const links = [
   { href: "/contact-requests", label: "Contact Requests", icon: Phone },
   { href: "/notifications",    label: "Announcements",    icon: Bell },
   { href: "/feedback",         label: "Feedback",         icon: Star },
+  { href: "/assistant",        label: "Terminal Assistant", icon: Bot },
   { href: "/support",          label: "Support",          icon: MessageCircle },
   { href: "/settings",         label: "Settings",         icon: Settings2 },
 ];

@@ -159,19 +159,39 @@ export default function HelpPage() {
     }
   };
 
-  const rateMessage = async (index: number, rating: "up" | "down") => {
-    setMessages((prev) =>
-      prev.map((m, i) => (i === index ? { ...m, feedback: m.feedback === rating ? null : rating } : m))
-    );
+  const [feedbackModal, setFeedbackModal] = useState<{ index: number; rating: "up" | "down" } | null>(null);
+  const [feedbackNote, setFeedbackNote] = useState("");
+
+  const submitFeedback = async (note: string) => {
+    if (!feedbackModal) return;
+    const { index, rating } = feedbackModal;
+    setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, feedback: rating } : m)));
+    const msg = messages[index];
+    setFeedbackModal(null);
+    setFeedbackNote("");
+    if (!msg?.id) return;
+    try {
+      const token = await getToken();
+      await fetch(`${API_BASE_URL}/api/assistant/history/${msg.id}/feedback`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rating, note: note.trim() || undefined }),
+      });
+    } catch {
+      // best-effort only
+    }
+  };
+
+  const clearFeedback = async (index: number) => {
+    setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, feedback: null } : m)));
     const msg = messages[index];
     if (!msg?.id) return;
     try {
       const token = await getToken();
-      const nextRating = messages[index].feedback === rating ? null : rating;
       await fetch(`${API_BASE_URL}/api/assistant/history/${msg.id}/feedback`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ rating: nextRating }),
+        body: JSON.stringify({ rating: null }),
       });
     } catch {
       // best-effort only
@@ -291,7 +311,9 @@ export default function HelpPage() {
                       <div className="flex items-center gap-1 px-1">
                         <button
                           type="button"
-                          onClick={() => rateMessage(i, "up")}
+                          onClick={() =>
+                            m.feedback === "up" ? clearFeedback(i) : setFeedbackModal({ index: i, rating: "up" })
+                          }
                           aria-label="Good reply"
                           className={`p-1.5 rounded transition-colors ${
                             m.feedback === "up"
@@ -303,7 +325,9 @@ export default function HelpPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => rateMessage(i, "down")}
+                          onClick={() =>
+                            m.feedback === "down" ? clearFeedback(i) : setFeedbackModal({ index: i, rating: "down" })
+                          }
                           aria-label="Bad reply"
                           className={`p-1.5 rounded transition-colors ${
                             m.feedback === "down"
@@ -386,6 +410,45 @@ export default function HelpPage() {
           </>
         )}
       </div>
+
+      {/* Feedback detail modal */}
+      {feedbackModal && (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-card border border-border rounded-lg shadow-2xl p-4">
+            <p className="text-sm font-medium text-foreground mb-1">
+              {feedbackModal.rating === "up" ? "Give positive feedback" : "Give negative feedback"}
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">What happened? (optional)</p>
+            <textarea
+              autoFocus
+              value={feedbackNote}
+              onChange={(e) => setFeedbackNote(e.target.value)}
+              placeholder="Add a detail for the team..."
+              rows={3}
+              className="w-full bg-secondary/40 border border-border rounded px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
+            />
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedbackModal(null);
+                  setFeedbackNote("");
+                }}
+                className="text-xs px-3 py-1.5 rounded border border-border text-muted-foreground hover:bg-secondary/40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => submitFeedback(feedbackNote)}
+                className="text-xs px-3 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

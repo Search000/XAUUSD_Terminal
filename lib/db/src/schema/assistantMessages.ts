@@ -15,6 +15,8 @@ export const assistantMessagesTable = pgTable("assistant_messages", {
   content: text("content").notNull(),
   /** "up" | "down" | null — only ever set on assistant messages */
   feedback: text("feedback"),
+  /** Optional free-text detail the user gave when leaving feedback. */
+  feedbackNote: text("feedback_note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

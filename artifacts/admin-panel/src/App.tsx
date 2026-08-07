@@ -24,6 +24,7 @@ const NotificationsPage = lazy(() =>
 );
 const ActivityLogPage = lazy(() => import("@/pages/ActivityLogPage").then((m) => ({ default: m.ActivityLogPage })));
 const FeedbackPage = lazy(() => import("@/pages/FeedbackPage").then((m) => ({ default: m.FeedbackPage })));
+const TerminalAssistantPage = lazy(() => import("@/pages/TerminalAssistantPage").then((m) => ({ default: m.TerminalAssistantPage })));
 const SupportPage = lazy(() => import("@/pages/SupportPage").then((m) => ({ default: m.SupportPage })));
 
 function RouteFallback() {
@@ -237,6 +238,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/feedback">
               <AdminLayout><FeedbackPage /></AdminLayout>
+            </Route>
+            <Route path="/assistant">
+              <AdminLayout><TerminalAssistantPage /></AdminLayout>
             </Route>
             <Route path="/support">
               <AdminLayout><SupportPage /></AdminLayout>
