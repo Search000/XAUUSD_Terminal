@@ -23,6 +23,7 @@ const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
 const ActivatePage = lazy(() => import("@/pages/ActivatePage"));
 const ScorePage = lazy(() => import("@/pages/ScorePage"));
 const ExecutionPage = lazy(() => import("@/pages/ExecutionPage"));
+const HelpPage = lazy(() => import("@/pages/HelpPage"));
 const XauusdMonitorPage = lazy(() =>
   import("@/pages/XauusdMonitorPage").then((m) => ({ default: m.XauusdMonitorPage })),
 );
@@ -217,6 +218,7 @@ function ClerkProviderWithRoutes() {
               <Route path="/achievements"><Redirect to="/score" /></Route>
               <Route path="/score" component={ScorePage} />
               <Route path="/execution" component={ExecutionPage} />
+              <Route path="/help" component={HelpPage} />
 
               <Route>
                 <div className="flex min-h-screen items-center justify-center">

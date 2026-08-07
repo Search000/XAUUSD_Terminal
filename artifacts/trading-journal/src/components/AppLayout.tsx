@@ -23,6 +23,7 @@ import {
   Wallet,
   Zap,
   TrendingUp,
+  MessageCircle,
 } from "lucide-react";
 import { Link } from "wouter";
 import { NotificationPanel } from "./NotificationPanel";
@@ -30,7 +31,6 @@ import { NicknameModal } from "./NicknameModal";
 import { TrialCountdownBanner } from "./TrialCountdownBanner";
 import { FeedbackModal } from "./FeedbackModal";
 import { RequestLicenseModal } from "./RequestLicenseModal";
-import { HelpChatWidget } from "./HelpChatWidget";
 
 const FEEDBACK_KEY = "trial_feedback_shown";
 
@@ -252,9 +252,17 @@ export function AppLayout({
           })}
         </nav>
 
-        {/* Help chat trigger — fills the empty sidebar space */}
+        {/* Help — links to a dedicated full page */}
         <div className="px-1 sm:px-2 pb-2 shrink-0">
-          <HelpChatWidget />
+          <Link href="/help">
+            <span
+              title="Need help?"
+              className="w-full text-xs font-mono uppercase tracking-wider text-primary border border-primary/30 bg-primary/10 hover:bg-primary/20 transition-colors px-1 sm:px-2.5 py-2 rounded flex items-center justify-center sm:justify-start gap-2 cursor-pointer"
+            >
+              <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Need help?</span>
+            </span>
+          </Link>
         </div>
 
         {/* Bottom user section */}
