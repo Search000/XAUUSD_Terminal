@@ -30,6 +30,31 @@ if (process.env["NODE_ENV"] === "production" && !process.env["SESSION_SECRET"]) 
   );
 }
 
+// Clerk auth silently no-ops on undefined keys instead of throwing, which
+// would let the API boot into a broken, unauthenticated-looking state.
+// Fail loudly at startup instead of discovering this via 401s in prod.
+if (process.env["NODE_ENV"] === "production") {
+  if (!process.env["CLERK_PUBLISHABLE_KEY"]) {
+    throw new Error(
+      "CLERK_PUBLISHABLE_KEY environment variable is required in production. Set it in the Render dashboard.",
+    );
+  }
+  if (!process.env["CLERK_SECRET_KEY"]) {
+    throw new Error(
+      "CLERK_SECRET_KEY environment variable is required in production. Set it in the Render dashboard.",
+    );
+  }
+  // An empty ALLOWED_ORIGINS silently blocks every credentialed
+  // cross-origin request from the journal/admin frontends (see cors()
+  // config in app.ts) — no crash, just broken CORS in the browser. Fail
+  // startup instead of shipping that silently.
+  if (!process.env["ALLOWED_ORIGINS"]?.trim()) {
+    throw new Error(
+      "ALLOWED_ORIGINS environment variable is required in production (comma-separated list of allowed frontend origins). Set it in the Render dashboard.",
+    );
+  }
+}
+
 // ── Prevent unhandled rejections from crashing the process ───────────────────
 // Render free tier: a single failed Yahoo Finance fetch must not kill the server
 process.on("unhandledRejection", (reason) => {
