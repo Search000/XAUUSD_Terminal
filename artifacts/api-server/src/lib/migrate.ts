@@ -245,6 +245,12 @@ export async function runMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS assistant_messages_user_id_idx ON assistant_messages (user_id);
 
       ALTER TABLE system_settings ADD COLUMN IF NOT EXISTS assistant_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+      CREATE TABLE IF NOT EXISTS assistant_probe_flags (
+        user_id    TEXT PRIMARY KEY,
+        count      INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
     `);
         logger.info("Migrations complete");
   } catch (err) {

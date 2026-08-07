@@ -34,6 +34,10 @@ services:
         sync: false          # REQUIRED — derives the chat message encryption key. Server refuses to start in production without this set. Generate e.g. `openssl rand -hex 32`.
       - key: ALLOWED_ORIGINS
         sync: false          # REQUIRED in production — comma-separated list of frontend origins allowed for CORS, e.g. https://xauusd-terminal-journal.onrender.com,https://xauusd-terminal-admin.onrender.com
+      - key: ADMIN_TELEGRAM_BOT_TOKEN
+        sync: false          # Optional — your own Telegram bot token, used to alert you when the Terminal Assistant detects repeated backend/secret probing
+      - key: ADMIN_TELEGRAM_CHAT_ID
+        sync: false          # Optional — your Telegram chat id to receive the above alerts
 
   # ── Trading Journal Frontend (Static Site) ────────────────────────────────
   - type: web
