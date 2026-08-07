@@ -719,201 +719,88 @@ function goldImpactFor(title: string): string {
   return "USD-denominated macro release — surprises versus forecast move the dollar and, inversely, gold.";
 }
 
-// Convert a US-Eastern wall-clock date+time ("2026-07-30", "08:30") into a
-// correct UTC ISO string, accounting for EST/EDT (DST) automatically. Uses
-// only built-in Intl — no extra deps, no network call.
-function etWallTimeToUtcIso(dateStr: string, timeStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const [hh, mm] = timeStr.split(":").map(Number);
-  const guessUtc = Date.UTC(y, m - 1, d, hh, mm);
-
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  const parts = Object.fromEntries(
-    fmt.formatToParts(new Date(guessUtc)).map((p) => [p.type, p.value]),
-  );
-  const readAsEt = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    parts.hour === "24" ? 0 : Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  const offset = guessUtc - readAsEt;
-  return new Date(guessUtc + offset).toISOString();
-}
-
-// FRED (Federal Reserve Economic Data, St. Louis Fed) — 100% free, no paid
-// tier, unlimited requests. https://fred.stlouisfed.org/docs/api/api_key.html
-// (Switched back from FMP: FMP's economic-calendar endpoint returns 402
-// Payment Required on the free plan — premium-only, not usable here.)
-// FRED doesn't publish consensus "forecast" figures, so forecast is left
-// null rather than fabricated (real data-source limitation, not a bug).
-// "actual"/"previous" ARE available from FRED's vintage (realtime)
-// observation history and are populated below instead of always blank.
+// Forex Factory calendar data, produced by the forex_factory_calendar_news_scraper
+// toolkit (https://github.com/fizahkhalid/forex_factory_calendar_news_scraper)
+// running as a scheduled GitHub Action (see .github/workflows/scrape.yml in
+// that repo) which commits fresh JSON back to the repo every 6 hours. We just
+// read the committed file straight off raw.githubusercontent.com — no server
+// to host, no API key, completely free.
 //
-// releaseTimeEt = official U.S. Eastern-time release hour for that report
-// (FOMC statement/rate decision drops at 14:00 ET, not 08:30 ET).
-const FRED_RELEASES: Array<{
-  id: number;
-  title: string;
-  series: string;
-  impact: "low" | "medium" | "high";
-  releaseTimeEt: string;
-  /** FRED "units" transform — turns raw levels into the %/change figures
-   * traders actually expect (ForexFactory-style), instead of a raw index
-   * or dollar level that's meaningless at a glance. */
-  units: "lin" | "chg" | "pch" | "pc1";
-  /** How to format the transformed value for display, e.g. "1.5%" or "197K". */
-  format: "percent" | "thousands" | "rate";
-}> = [
-  { id: 10, title: "Consumer Price Index (CPI) m/m", series: "CPIAUCSL", impact: "high", releaseTimeEt: "08:30", units: "pch", format: "percent" },
-  { id: 50, title: "Non-Farm Payrolls (change)", series: "PAYEMS", impact: "high", releaseTimeEt: "08:30", units: "chg", format: "thousands" },
-  { id: 53, title: "GDP (annualized q/q)", series: "A191RL1Q225SBEA", impact: "high", releaseTimeEt: "08:30", units: "lin", format: "percent" },
-  { id: 101, title: "FOMC Press Release / Rate Decision", series: "FEDFUNDS", impact: "high", releaseTimeEt: "14:00", units: "lin", format: "rate" },
-  { id: 46, title: "Producer Price Index (PPI) m/m", series: "PPIACO", impact: "medium", releaseTimeEt: "08:30", units: "pch", format: "percent" },
-  { id: 9, title: "Retail Sales m/m", series: "RSAFS", impact: "medium", releaseTimeEt: "08:30", units: "pch", format: "percent" },
-];
+// FF_CALENDAR_GITHUB_OWNER/REPO/BRANCH point at wherever you forked that repo.
+const FF_GH_OWNER = process.env["FF_CALENDAR_GITHUB_OWNER"] || "YOUR_GITHUB_USERNAME";
+const FF_GH_REPO = process.env["FF_CALENDAR_GITHUB_REPO"] || "forex_factory_calendar_news_scraper";
+const FF_GH_BRANCH = process.env["FF_CALENDAR_GITHUB_BRANCH"] || "main";
 
-/** Format a raw FRED numeric string per the release's display convention. */
-function formatFredValue(raw: string, format: "percent" | "thousands" | "rate"): string {
-  const n = parseFloat(raw);
-  if (isNaN(n)) return raw;
-  if (format === "percent" || format === "rate") return `${n.toFixed(1)}%`;
-  if (format === "thousands") return `${Math.round(n)}K`;
-  return raw;
+// Impact icon color -> our impact scale.
+const FF_IMPACT_MAP: Record<string, "low" | "medium" | "high"> = {
+  red: "high",
+  orange: "medium",
+  yellow: "low",
+  gray: "low",
+};
+
+/** Forex Factory dates come back as "DD/MM/YYYY" + "HH:MM" already in UTC
+ * (because the workflow's FF_TARGET_TIMEZONE=UTC). */
+function ffToUtcIso(dateStr: string, timeStr: string): string | null {
+  const dm = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!dm || !timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) return null;
+  const [, dd, mm, yyyy] = dm;
+  return new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd),
+    Number(timeStr.slice(0, 2)), Number(timeStr.slice(3, 5)))).toISOString();
 }
 
-// FRED's release_id 101 ("FOMC Press Release") is NOT limited to the 8
-// actual rate-decision days a year — it fires for minutes, speeches, and
-// other FOMC-tagged communications almost daily, which was causing the
-// same "FOMC Press Release / Rate Decision" event (with an identical,
-// unchanged FEDFUNDS rate) to show up on nearly every calendar day.
-// The real decision dates are published by the Fed well in advance, so
-// they're hardcoded here instead (statement day = 2nd day of each
-// two-day meeting, 2:00pm ET). Source: federalreserve.gov press releases
-// announcing the 2025/2026/2027 tentative meeting schedules.
-const FOMC_STATEMENT_DATES = [
-  // 2025
-  "2025-01-29", "2025-03-19", "2025-05-07", "2025-06-18",
-  "2025-07-30", "2025-09-17", "2025-10-29", "2025-12-10",
-  // 2026
-  "2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17",
-  "2026-07-29", "2026-09-16", "2026-10-28", "2026-12-09",
-  // 2027 (tentative)
-  "2027-01-27", "2027-03-17", "2027-04-28", "2027-06-09",
-  "2027-07-28", "2027-09-15", "2027-10-27", "2027-12-08",
-];
-
-async function fredGet(apiKey: string, path: string, params: Record<string, string | number>): Promise<any> {
-  const url = new URL(`https://api.stlouisfed.org/fred/${path}`);
-  url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("file_type", "json");
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
-
+async function fetchJsonFromGithub(monthSlug: string): Promise<any[]> {
+  const url = `https://raw.githubusercontent.com/${FF_GH_OWNER}/${FF_GH_REPO}/${FF_GH_BRANCH}/news/last_run/${monthSlug}.json`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10_000);
   try {
-    const res = await fetch(url.toString(), { signal: controller.signal });
-    if (!res.ok) throw new Error(`FRED error: ${res.status}`);
+    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+    if (!res.ok) {
+      if (res.status === 404) return []; // that month just hasn't been scraped/committed yet
+      throw new Error(`GitHub raw fetch error: ${res.status}`);
+    }
     return await res.json();
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchFredCalendar(): Promise<any[]> {
-  const apiKey = process.env["FRED_API_KEY"];
-  if (!apiKey) {
-    throw new Error("FRED_API_KEY not set");
-  }
+async function fetchForexFactoryCalendar(): Promise<any[]> {
+  const now = new Date();
+  const thisSlug = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const nextDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const nextSlug = `${nextDate.getUTCFullYear()}-${String(nextDate.getUTCMonth() + 1).padStart(2, "0")}`;
 
-  const today = new Date();
-  const from = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
-  const until = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
+  const [thisMonth, nextMonth] = await Promise.all([
+    fetchJsonFromGithub(thisSlug),
+    fetchJsonFromGithub(nextSlug),
+  ]);
+  const raw = [...thisMonth, ...nextMonth];
 
   const events: any[] = [];
-  const todayStr = today.toISOString().split("T")[0];
+  for (const row of raw) {
+    const title: string = row.event || "";
+    const titleLower = title.toLowerCase();
+    // Only keep events that actually move gold — same allowlist as before.
+    if (!GOLD_RELEVANT_KEYWORDS.some((kw) => titleLower.includes(kw))) continue;
 
-  for (const rel of FRED_RELEASES) {
-    try {
-      // FOMC: use the hardcoded real decision-day list instead of FRED's
-      // noisy release/dates feed (see FOMC_STATEMENT_DATES comment above).
-      const dates: Array<{ date: string }> =
-        rel.id === 101
-          ? FOMC_STATEMENT_DATES.filter((d) => d >= from && d <= until).map((d) => ({ date: d }))
-          : ((await fredGet(apiKey, "release/dates", {
-              release_id: rel.id,
-              realtime_start: from,
-              realtime_end: until,
-              include_release_dates_with_no_data: "false",
-            }))?.release_dates ?? [])
-              .filter((d: any) => d?.date >= from && d?.date <= until)
-              .sort((a: any, b: any) => a.date.localeCompare(b.date));
-      if (dates.length === 0) continue;
+    const datetimeUtc = ffToUtcIso(row.date, row.time);
+    if (!datetimeUtc) continue; // skip "All Day" / "Tentative" / unparsable rows
 
-      // For each release date that's already happened, ask FRED what the
-      // series looked like "as known on that date" (a vintage/realtime
-      // lookup), pulling the 2 most recent observations at once: [0] is
-      // the actual just-released print, [1] is the prior period's value
-      // (i.e. "previous"). Pulling both directly — instead of chaining
-      // actuals across release dates within the narrow ±30/14-day window —
-      // means "previous" is correct even when only one release date for
-      // a monthly/quarterly series falls inside that window.
-      for (const d of dates) {
-        let actual: string | null = null;
-        let previous: string | null = null;
-        if (d.date <= todayStr) {
-          try {
-            const obs = await fredGet(apiKey, "series/observations", {
-              series_id: rel.series,
-              units: rel.units,
-              realtime_start: d.date,
-              realtime_end: d.date,
-              sort_order: "desc",
-              limit: 2,
-            });
-            const observations = obs?.observations ?? [];
-            const actualVal = observations[0]?.value;
-            const prevVal = observations[1]?.value;
-            if (actualVal && actualVal !== ".") actual = formatFredValue(actualVal, rel.format);
-            if (prevVal && prevVal !== ".") previous = formatFredValue(prevVal, rel.format);
-          } catch {
-            // vintage lookup is best-effort; leave actual/previous null on failure
-          }
-        }
-
-        events.push({
-          id: `fred-${rel.id}-${d.date}`,
-          title: rel.title,
-          country: "USD",
-          date: d.date,
-          time: rel.releaseTimeEt,
-          datetimeUtc: etWallTimeToUtcIso(d.date, rel.releaseTimeEt),
-          impact: rel.impact,
-          forecast: null,
-          previous,
-          actual,
-          description: `${rel.title} release, scheduled via the FRED (St. Louis Fed) release calendar.`,
-          goldImpact: goldImpactFor(rel.title),
-        });
-      }
-    } catch (err) {
-      logger.warn({ err, release: rel.id }, "FRED release/dates fetch failed for one release");
-    }
+    events.push({
+      id: `ff-${title.replace(/\s+/g, "-").toLowerCase()}-${row.date}-${row.time}`,
+      title,
+      country: row.currency || "USD",
+      date: datetimeUtc.split("T")[0],
+      time: row.time,
+      datetimeUtc,
+      impact: FF_IMPACT_MAP[(row.impact || "").toLowerCase()] || "low",
+      forecast: row.forecast || null,
+      previous: row.previous || null,
+      actual: row.actual || null,
+      description: `${title}, via Forex Factory economic calendar.`,
+      goldImpact: goldImpactFor(title),
+    });
   }
 
   events.sort((a, b) => a.datetimeUtc.localeCompare(b.datetimeUtc));
@@ -929,13 +816,13 @@ router.get("/xauusd/calendar", async (_req, res) => {
   }
 
   try {
-    const events = await fetchFredCalendar();
-    if (events.length === 0) throw new Error("FRED calendar returned 0 relevant events");
+    const events = await fetchForexFactoryCalendar();
+    if (events.length === 0) throw new Error("Forex Factory scraper returned 0 relevant events");
     calendarCache = events;
     calendarCacheAt = now;
     res.json(calendarCache);
   } catch (err) {
-    logger.warn({ err }, "xauusd/calendar: FRED feed unavailable, no cached data to serve");
+    logger.warn({ err }, "xauusd/calendar: Forex Factory scraper service unavailable, no cached data to serve");
     if (calendarCache) {
       res.json(calendarCache);
       return;
