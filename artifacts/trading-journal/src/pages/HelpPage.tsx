@@ -160,14 +160,34 @@ export default function HelpPage() {
   };
 
   const [feedbackModal, setFeedbackModal] = useState<{ index: number; rating: "up" | "down" } | null>(null);
+  const [feedbackCategory, setFeedbackCategory] = useState("");
   const [feedbackNote, setFeedbackNote] = useState("");
 
-  const submitFeedback = async (note: string) => {
+  const NEGATIVE_CATEGORIES = [
+    "Wrong or inaccurate info",
+    "Didn't understand my question",
+    "Language mismatch",
+    "Broken or wrong link",
+    "Slow / didn't respond",
+    "Rude or unhelpful tone",
+    "Other",
+  ];
+  const POSITIVE_CATEGORIES = [
+    "Solved my problem",
+    "Fast and accurate",
+    "Explained clearly",
+    "Found the right page",
+    "Other",
+  ];
+
+  const submitFeedback = async () => {
     if (!feedbackModal) return;
     const { index, rating } = feedbackModal;
+    const combinedNote = [feedbackCategory, feedbackNote.trim()].filter(Boolean).join(" — ");
     setMessages((prev) => prev.map((m, i) => (i === index ? { ...m, feedback: rating } : m)));
     const msg = messages[index];
     setFeedbackModal(null);
+    setFeedbackCategory("");
     setFeedbackNote("");
     if (!msg?.id) return;
     try {
@@ -175,7 +195,7 @@ export default function HelpPage() {
       await fetch(`${API_BASE_URL}/api/assistant/history/${msg.id}/feedback`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ rating, note: note.trim() || undefined }),
+        body: JSON.stringify({ rating, note: combinedNote || undefined }),
       });
     } catch {
       // best-effort only
@@ -418,12 +438,22 @@ export default function HelpPage() {
             <p className="text-sm font-medium text-foreground mb-1">
               {feedbackModal.rating === "up" ? "Give positive feedback" : "Give negative feedback"}
             </p>
-            <p className="text-xs text-muted-foreground mb-3">What happened? (optional)</p>
+            <p className="text-xs text-muted-foreground mb-1">What type of issue is this? (optional)</p>
+            <select
+              value={feedbackCategory}
+              onChange={(e) => setFeedbackCategory(e.target.value)}
+              className="w-full bg-secondary/40 border border-border rounded px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 mb-3"
+            >
+              <option value="">Select...</option>
+              {(feedbackModal.rating === "up" ? POSITIVE_CATEGORIES : NEGATIVE_CATEGORIES).map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground mb-1">Add a detail (optional)</p>
             <textarea
-              autoFocus
               value={feedbackNote}
               onChange={(e) => setFeedbackNote(e.target.value)}
-              placeholder="Add a detail for the team..."
+              placeholder="Tell us more..."
               rows={3}
               className="w-full bg-secondary/40 border border-border rounded px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
             />
@@ -432,6 +462,7 @@ export default function HelpPage() {
                 type="button"
                 onClick={() => {
                   setFeedbackModal(null);
+                  setFeedbackCategory("");
                   setFeedbackNote("");
                 }}
                 className="text-xs px-3 py-1.5 rounded border border-border text-muted-foreground hover:bg-secondary/40"
@@ -440,7 +471,7 @@ export default function HelpPage() {
               </button>
               <button
                 type="button"
-                onClick={() => submitFeedback(feedbackNote)}
+                onClick={submitFeedback}
                 className="text-xs px-3 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Submit
