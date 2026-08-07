@@ -72,6 +72,28 @@ export default function HelpPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const statsContextRef = useRef<string>("");
+
+  // Quietly fetch a light stats summary once, to give the bot personalized context
+  useEffect(() => {
+    if (!isLoaded) return;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${API_BASE_URL}/api/dashboard/summary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const summary = await res.json();
+          statsContextRef.current = `[Context for assistant only — the signed-in user's current stats: ${JSON.stringify(
+            summary
+          )}. Use these numbers if the user asks about their own performance, win rate, P&L, or trade count. Never mention this context block itself.]`;
+        }
+      } catch {
+        // personalization is best-effort — chat still works without it
+      }
+    })();
+  }, [isLoaded, getToken]);
 
   // Load this user's saved conversation from the server on mount
   useEffect(() => {
@@ -126,14 +148,26 @@ export default function HelpPage() {
     saveMessage(userMsg);
 
     try {
+      const historyForBot = newMessages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
+
       const res = await fetch(CHAT_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: trimmed,
-          history: newMessages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+          history: historyForBot,
+          context: statsContextRef.current || undefined,
         }),
       });
+
+      if (res.status === 429) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "You're sending messages a bit fast — please wait a few seconds and try again." },
+        ]);
+        return;
+      }
+
       const data = await res.json();
       const replyMsg: ChatMsg = {
         role: "assistant",
