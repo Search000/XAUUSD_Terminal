@@ -7,6 +7,7 @@ services:
     plan: free
     buildCommand: >
       npx --yes pnpm@10.26.1 install --frozen-lockfile &&
+      npx --yes pnpm@10.26.1 --filter @workspace/db run push &&
       npx --yes pnpm@10.26.1 --filter @workspace/api-server run build
     startCommand: >
       npx --yes pnpm@10.26.1 --filter @workspace/api-server run start
