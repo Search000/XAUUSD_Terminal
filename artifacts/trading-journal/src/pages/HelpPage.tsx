@@ -26,13 +26,21 @@ const QUICK_REPLIES = [
   "How do investor shares work?",
 ];
 
-/** Splits a raw bot reply into { text, suggestions } — parses the trailing <suggestions>a|b|c</suggestions> block. */
+/** Splits a raw bot reply into { text, suggestions } — parses the trailing <suggestions>a|b|c</suggestions> block.
+ *  Tolerant of a truncated/unclosed tag (e.g. response cut short) — in that case the tag is just stripped. */
 function parseReply(raw: string): { text: string; suggestions: string[] } {
-  const match = raw.match(/<suggestions>(.*?)<\/suggestions>/s);
-  if (!match) return { text: raw.trim(), suggestions: [] };
-  const suggestions = match[1].split("|").map((s) => s.trim()).filter(Boolean).slice(0, 3);
-  const text = raw.replace(match[0], "").trim();
-  return { text, suggestions };
+  const closedMatch = raw.match(/<suggestions>(.*?)<\/suggestions>/s);
+  if (closedMatch) {
+    const suggestions = closedMatch[1].split("|").map((s) => s.trim()).filter(Boolean).slice(0, 3);
+    const text = raw.replace(closedMatch[0], "").trim();
+    return { text, suggestions };
+  }
+  // Unclosed/truncated tag — drop everything from the opening tag onward, no suggestions to show
+  const openIndex = raw.indexOf("<suggestions>");
+  if (openIndex !== -1) {
+    return { text: raw.slice(0, openIndex).trim(), suggestions: [] };
+  }
+  return { text: raw.trim(), suggestions: [] };
 }
 
 /** Renders text with markdown-style [label](/path) links as clickable in-app links (SPA nav, no reload). */
@@ -285,8 +293,10 @@ export default function HelpPage() {
                           type="button"
                           onClick={() => rateMessage(i, "up")}
                           aria-label="Good reply"
-                          className={`p-1 rounded hover:bg-secondary/60 transition-colors ${
-                            m.feedback === "up" ? "text-green-500" : "text-muted-foreground/50"
+                          className={`p-1.5 rounded transition-colors ${
+                            m.feedback === "up"
+                              ? "text-green-500 bg-green-500/15"
+                              : "text-muted-foreground/50 hover:bg-secondary/60"
                           }`}
                         >
                           <ThumbsUp className="w-3.5 h-3.5" />
@@ -295,8 +305,10 @@ export default function HelpPage() {
                           type="button"
                           onClick={() => rateMessage(i, "down")}
                           aria-label="Bad reply"
-                          className={`p-1 rounded hover:bg-secondary/60 transition-colors ${
-                            m.feedback === "down" ? "text-red-500" : "text-muted-foreground/50"
+                          className={`p-1.5 rounded transition-colors ${
+                            m.feedback === "down"
+                              ? "text-red-500 bg-red-500/15"
+                              : "text-muted-foreground/50 hover:bg-secondary/60"
                           }`}
                         >
                           <ThumbsDown className="w-3.5 h-3.5" />
