@@ -70,6 +70,19 @@ export default defineConfig({
         // this means e.g. the PDF-export library only downloads when a
         // page that uses it is opened, instead of shipping on every load.
         manualChunks(id) {
+          // Vite's internal dynamic-import helpers (used by every React.lazy()
+          // call, virtual modules — not under node_modules) aren't matched by
+          // any branch below, so Rollup's default algorithm decides where to
+          // put them. It was co-locating them inside the 'vendor-pdf' chunk,
+          // which forced that 338KB jsPDF bundle to be eagerly
+          // modulepreloaded on EVERY page (landing, sign-in, etc.) since the
+          // entry chunk needs the helper to run any lazy() import at all —
+          // completely defeating the point of splitting jsPDF out to begin
+          // with. Pin them to 'vendor' (already always eagerly loaded) so no
+          // route-specific vendor chunk is forced to load early.
+          if (id.includes('vite/preload-helper') || id.includes('vite/modulepreload-polyfill')) {
+            return 'vendor';
+          }
           if (!id.includes('node_modules')) return undefined;
           if (id.includes('recharts') || id.includes('d3-')) return 'vendor-charts';
           if (id.includes('jspdf')) return 'vendor-pdf';

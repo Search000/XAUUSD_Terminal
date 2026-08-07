@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import { fetchWithTimeout } from "./fetchWithTimeout";
 
 /**
  * Telegram Bot API helper.
@@ -9,13 +10,14 @@ export async function sendTelegramMessage(
   chatId: string,
   text: string,
 ): Promise<void> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://api.telegram.org/bot${botToken}/sendMessage`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown" }),
     },
+    10_000,
   );
   const json = (await res.json()) as { ok: boolean; description?: string };
   if (!json.ok) throw new Error(json.description ?? "Telegram API error");
