@@ -261,6 +261,19 @@ export function AppLayout({
           })}
         </nav>
 
+        {/* Feedback — always available, opens the rating modal on demand */}
+        <div className="px-1 sm:px-2 pb-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowFeedback(true)}
+            title="Give feedback"
+            className="w-full text-xs font-mono uppercase tracking-wider text-amber-400 border border-amber-400/30 bg-amber-400/10 hover:bg-amber-400/20 transition-colors px-1 sm:px-2.5 py-2 rounded flex items-center justify-center sm:justify-start gap-2 cursor-pointer"
+          >
+            <Star className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Feedback</span>
+          </button>
+        </div>
+
         {/* Help — links to a dedicated full page (hidden if admin disables the assistant) */}
         {isAssistantEnabled && (
           <div className="px-1 sm:px-2 pb-2 shrink-0">
