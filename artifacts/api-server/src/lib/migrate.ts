@@ -255,6 +255,124 @@ export async function runMigrations(): Promise<void> {
       ALTER TABLE assistant_messages ADD COLUMN IF NOT EXISTS feedback TEXT;
       ALTER TABLE assistant_messages ADD COLUMN IF NOT EXISTS feedback_note TEXT;
     `);
+    // Ops Agent (owner-only "manager bot") — phases 1-6, idempotent
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ops_error_logs (
+        id SERIAL PRIMARY KEY,
+        source TEXT NOT NULL,
+        route TEXT,
+        message TEXT NOT NULL,
+        stack TEXT,
+        meta JSONB,
+        occurrences INTEGER NOT NULL DEFAULT 1,
+        resolved BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ops_alerts (
+        id SERIAL PRIMARY KEY,
+        type TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'info',
+        title TEXT NOT NULL,
+        detail TEXT,
+        error_log_id INTEGER REFERENCES ops_error_logs(id),
+        acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+        telegram_sent BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ops_actions (
+        id SERIAL PRIMARY KEY,
+        alert_id INTEGER REFERENCES ops_alerts(id),
+        action_type TEXT NOT NULL,
+        description TEXT NOT NULL,
+        reasoning TEXT,
+        payload JSONB,
+        status TEXT NOT NULL DEFAULT 'pending',
+        requested_by TEXT NOT NULL DEFAULT 'ops-agent',
+        approved_by TEXT,
+        result JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        decided_at TIMESTAMPTZ,
+        executed_at TIMESTAMPTZ,
+        requires_double_confirm BOOLEAN NOT NULL DEFAULT FALSE,
+        double_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+        outcome_verified BOOLEAN NOT NULL DEFAULT FALSE,
+        outcome_success BOOLEAN
+      );
+
+      CREATE TABLE IF NOT EXISTS ops_mistakes (
+        id SERIAL PRIMARY KEY,
+        action_id INTEGER REFERENCES ops_actions(id),
+        problem TEXT NOT NULL,
+        tried_fix TEXT NOT NULL,
+        result TEXT NOT NULL,
+        root_cause TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ops_digests (
+        id SERIAL PRIMARY KEY,
+        period TEXT NOT NULL,
+        period_start TIMESTAMPTZ NOT NULL,
+        period_end TIMESTAMPTZ NOT NULL,
+        stats JSONB NOT NULL,
+        summary TEXT,
+        telegram_sent BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ops_ticket_meta (
+        id SERIAL PRIMARY KEY,
+        ticket_id INTEGER NOT NULL,
+        category TEXT,
+        draft_reply TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ops_security_events (
+        id SERIAL PRIMARY KEY,
+        type TEXT NOT NULL,
+        ip TEXT,
+        user_id TEXT,
+        detail JSONB,
+        severity TEXT NOT NULL DEFAULT 'warning',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ops_dev_suggestions (
+        id SERIAL PRIMARY KEY,
+        type TEXT NOT NULL,
+        source_ref TEXT,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'new',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS ops_suggestions (
+        id SERIAL PRIMARY KEY,
+        what TEXT NOT NULL,
+        why TEXT NOT NULL,
+        impact TEXT NOT NULL,
+        timing TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        effort TEXT,
+        effort_impact_note TEXT,
+        area TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_ops_error_logs_created_at ON ops_error_logs(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_ops_alerts_created_at ON ops_alerts(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_ops_actions_status ON ops_actions(status);
+      CREATE INDEX IF NOT EXISTS idx_ops_security_events_created_at ON ops_security_events(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_ops_security_events_type ON ops_security_events(type);
+      CREATE INDEX IF NOT EXISTS idx_ops_dev_suggestions_status ON ops_dev_suggestions(status);
+      CREATE INDEX IF NOT EXISTS idx_ops_suggestions_priority ON ops_suggestions(priority);
+    `);
         logger.info("Migrations complete");
   } catch (err) {
     logger.error({ err }, "Migration failed");

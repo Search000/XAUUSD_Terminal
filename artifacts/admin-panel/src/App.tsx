@@ -26,6 +26,7 @@ const ActivityLogPage = lazy(() => import("@/pages/ActivityLogPage").then((m) =>
 const FeedbackPage = lazy(() => import("@/pages/FeedbackPage").then((m) => ({ default: m.FeedbackPage })));
 const TerminalAssistantPage = lazy(() => import("@/pages/TerminalAssistantPage").then((m) => ({ default: m.TerminalAssistantPage })));
 const SupportPage = lazy(() => import("@/pages/SupportPage").then((m) => ({ default: m.SupportPage })));
+const OpsAgentPage = lazy(() => import("@/pages/OpsAgentPage").then((m) => ({ default: m.OpsAgentPage })));
 
 function RouteFallback() {
   return (
@@ -247,6 +248,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/activity">
               <AdminLayout><ActivityLogPage /></AdminLayout>
+            </Route>
+            <Route path="/ops-agent">
+              <AdminLayout><OpsAgentPage /></AdminLayout>
             </Route>
 
             <Route>

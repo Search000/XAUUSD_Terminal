@@ -8,6 +8,9 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { db } from "@workspace/db";
+import { opsErrorLogs } from "@workspace/db";
+import { logSecurityEvent } from "./routes/ops-security";
 
 // ── In-memory rate limiter (no external dep) ──────────────────────────────────
 interface RateBucket { count: number; resetAt: number }
@@ -26,6 +29,7 @@ function makeRateLimiter(maxRequests: number, windowMs: number, message = "Too m
     res.setHeader("X-RateLimit-Limit",     String(maxRequests));
     res.setHeader("X-RateLimit-Remaining", String(Math.max(0, maxRequests - bucket.count)));
     if (bucket.count > maxRequests) {
+      logSecurityEvent({ type: "rate_limit", ip: req.ip, detail: { route: req.path, count: bucket.count } }).catch(() => {});
       res.status(429).json({ error: message });
       return;
     }
@@ -91,6 +95,7 @@ app.use(
       if (!origin) return callback(null, true);
       if (process.env.NODE_ENV !== "production") return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
+      logSecurityEvent({ type: "cors_violation", ip: undefined, detail: { origin } }).catch(() => {});
       callback(new Error(`Origin ${origin} not allowed by CORS`));
     },
   }),
@@ -124,6 +129,45 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
     ?? (err as { status?: number; statusCode?: number })?.statusCode
     ?? 500;
   req.log?.error({ err }, "Unhandled error");
+
+  // Ops agent error capture — fire-and-forget, never blocks the response.
+  // Repeated-pattern detection: bump `occurrences` if the same route+message
+  // was already logged in the last hour instead of inserting a duplicate row.
+  (async () => {
+    try {
+      const errMessage = (err as { message?: string })?.message ?? String(err);
+      const stack = (err as { stack?: string })?.stack ?? null;
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const { eq, and, gte, sql } = await import("drizzle-orm");
+      const [existing] = await db
+        .select()
+        .from(opsErrorLogs)
+        .where(and(
+          eq(opsErrorLogs.route, req.path),
+          eq(opsErrorLogs.message, errMessage),
+          gte(opsErrorLogs.lastSeenAt, oneHourAgo),
+        ))
+        .limit(1);
+
+      if (existing) {
+        await db
+          .update(opsErrorLogs)
+          .set({ occurrences: sql`${opsErrorLogs.occurrences} + 1`, lastSeenAt: new Date() })
+          .where(eq(opsErrorLogs.id, existing.id));
+      } else {
+        await db.insert(opsErrorLogs).values({
+          source: "backend",
+          route: req.path,
+          message: errMessage,
+          stack,
+          meta: { method: req.method, status },
+        });
+      }
+    } catch {
+      // never let error-logging itself crash the error handler
+    }
+  })();
+
   // For 5xx (unexpected) errors, never echo the raw error message back to
   // the client — it can leak internal details (DB hosts, stack traces,
   // third-party API errors). The real message still goes to the server log

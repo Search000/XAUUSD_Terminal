@@ -20,6 +20,10 @@ import heatmapRouter from "./heatmap";
 import feedbackRouter from "./feedback";
 import supportRouter from "./support";
 import assistantRouter from "./assistant";
+import opsRouter from "./ops";
+import opsReportingRouter from "./ops-reporting";
+import opsSecurityRouter from "./ops-security";
+import opsDevLearningAdvisoryRouter from "./ops-dev-learning-advisory";
 
 const router = Router();
 
@@ -44,5 +48,9 @@ router.use(heatmapRouter);
 router.use(feedbackRouter);
 router.use(supportRouter);
 router.use(assistantRouter);
+router.use("/ops", opsRouter);
+router.use("/ops", opsReportingRouter);
+router.use("/ops", opsSecurityRouter);
+router.use("/ops", opsDevLearningAdvisoryRouter);
 
 export default router;

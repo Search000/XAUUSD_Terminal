@@ -7,6 +7,7 @@ import { requireAuth } from "../lib/auth";
 import { asyncHandler } from "../lib/asyncHandler";
 import { sendTelegramMessage } from "../lib/telegram";
 import { logger } from "../lib/logger";
+import { logSecurityEvent } from "./ops-security";
 
 const router = Router();
 
@@ -51,6 +52,8 @@ async function trackProbeAttempt(userId: string): Promise<void> {
       [userId],
     );
     const count = rows[0]?.count ?? 0;
+
+    logSecurityEvent({ type: "secret_probe", userId, detail: { count } }).catch(() => {});
 
     if (count > 0 && count % ALERT_THRESHOLD === 0) {
       const botToken = process.env["ADMIN_TELEGRAM_BOT_TOKEN"];

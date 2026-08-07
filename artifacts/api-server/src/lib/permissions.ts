@@ -23,6 +23,7 @@ export const PERMISSIONS = [
   "manage_feedback",
   "manage_contact_requests",
   "manage_roles",
+  "manage_ops_agent",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -30,7 +31,7 @@ export type Permission = (typeof PERMISSIONS)[number];
  *  keep both in sync when adding/removing a permission from a role. */
 export const ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
   owner: [...PERMISSIONS],
-  admin: PERMISSIONS.filter((p) => p !== "manage_roles"),
+  admin: PERMISSIONS.filter((p) => p !== "manage_roles" && p !== "manage_ops_agent"),
   moderator: [
     "view_dashboard", "view_users", "view_licenses", "manage_licenses",
     "manage_offers", "manage_support", "manage_feedback", "manage_contact_requests",
@@ -41,7 +42,7 @@ export const ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
 
 /** One-line description of what each role can do, shown in the admin panel. */
 export const ROLE_DESCRIPTIONS: Record<StaffRole, string> = {
-  owner: "Full control, including assigning roles to other staff. Reserved for the account owner.",
+  owner: "Full control, including assigning roles to other staff and the ops agent. Reserved for the account owner.",
   admin: "Full control over users, licenses, offers, settings, notifications and support — cannot change staff roles.",
   moderator: "Manage users, licenses, offers, support and feedback — no access to system settings or broadcasts.",
   support: "Handle support messages, feedback and contact requests only.",
