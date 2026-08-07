@@ -13,6 +13,8 @@ export const assistantMessagesTable = pgTable("assistant_messages", {
   /** "user" | "assistant" */
   role: text("role").notNull(),
   content: text("content").notNull(),
+  /** "up" | "down" | null — only ever set on assistant messages */
+  feedback: text("feedback"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

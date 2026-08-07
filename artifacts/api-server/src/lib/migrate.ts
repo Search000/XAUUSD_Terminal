@@ -251,6 +251,8 @@ export async function runMigrations(): Promise<void> {
         count      INTEGER NOT NULL DEFAULT 0,
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
+
+      ALTER TABLE assistant_messages ADD COLUMN IF NOT EXISTS feedback TEXT;
     `);
         logger.info("Migrations complete");
   } catch (err) {

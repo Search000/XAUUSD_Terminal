@@ -93,7 +93,7 @@ router.get("/assistant/history", requireAuth, asyncHandler(async (req, res) => {
     .where(eq(assistantMessagesTable.userId, userId))
     .orderBy(asc(assistantMessagesTable.createdAt));
 
-  res.json(rows.map((r) => ({ role: r.role, content: r.content })));
+  res.json(rows.map((r) => ({ id: r.id, role: r.role, content: r.content, feedback: r.feedback })));
 }));
 
 /** POST /api/assistant/history — append one message (user or assistant) */
@@ -111,13 +111,38 @@ router.post("/assistant/history", requireAuth, asyncHandler(async (req, res) => 
     return;
   }
 
-  await db.insert(assistantMessagesTable).values({ userId, role, content });
+  const [inserted] = await db
+    .insert(assistantMessagesTable)
+    .values({ userId, role, content })
+    .returning({ id: assistantMessagesTable.id });
 
   // Fire-and-forget: never block the chat response on this
   if (role === "user" && looksLikeProbe(content)) {
     trackProbeAttempt(userId).catch(() => {});
   }
 
+  res.json({ success: true, id: inserted?.id });
+}));
+
+/** PATCH /api/assistant/history/:id/feedback — thumbs up/down on one assistant message */
+router.patch("/assistant/history/:id/feedback", requireAuth, asyncHandler(async (req, res) => {
+  const { userId } = getAuth(req);
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = Number(req.params.id);
+  const { rating } = req.body ?? {};
+  if (!Number.isInteger(id) || (rating !== "up" && rating !== "down" && rating !== null)) {
+    res.status(400).json({ error: "Invalid feedback" });
+    return;
+  }
+
+  const [msg] = await db.select().from(assistantMessagesTable).where(eq(assistantMessagesTable.id, id));
+  if (!msg || msg.userId !== userId) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  await db.update(assistantMessagesTable).set({ feedback: rating }).where(eq(assistantMessagesTable.id, id));
   res.json({ success: true });
 }));
 

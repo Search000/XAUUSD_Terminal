@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, Send, Loader2, LifeBuoy } from "lucide-react";
+import { MessageCircle, Send, Loader2, LifeBuoy, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useAuth } from "@clerk/react";
 import { Link as WouterLink, useLocation } from "wouter";
 import { AppLayout } from "@/components/AppLayout";
@@ -8,8 +8,10 @@ import { API_BASE_URL } from "@/lib/apiConfig";
 const CHAT_API_URL = "https://xauusd-chatbot.searchoption00.workers.dev/chat";
 
 type ChatMsg = {
+  id?: number;
   role: "user" | "assistant";
   content: string;
+  feedback?: "up" | "down" | null;
 };
 
 const DEFAULT_GREETING: ChatMsg = {
@@ -23,6 +25,15 @@ const QUICK_REPLIES = [
   "Where can I see my win rate?",
   "How do investor shares work?",
 ];
+
+/** Splits a raw bot reply into { text, suggestions } — parses the trailing <suggestions>a|b|c</suggestions> block. */
+function parseReply(raw: string): { text: string; suggestions: string[] } {
+  const match = raw.match(/<suggestions>(.*?)<\/suggestions>/s);
+  if (!match) return { text: raw.trim(), suggestions: [] };
+  const suggestions = match[1].split("|").map((s) => s.trim()).filter(Boolean).slice(0, 3);
+  const text = raw.replace(match[0], "").trim();
+  return { text, suggestions };
+}
 
 /** Renders text with markdown-style [label](/path) links as clickable in-app links (SPA nav, no reload). */
 function MessageContent({ text }: { text: string }) {
@@ -71,6 +82,7 @@ export default function HelpPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [followUps, setFollowUps] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const statsContextRef = useRef<string>("");
 
@@ -120,19 +132,41 @@ export default function HelpPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  const saveMessage = async (msg: ChatMsg) => {
+  const saveMessage = async (msg: ChatMsg): Promise<number | undefined> => {
     try {
       const token = await getToken();
-      await fetch(`${API_BASE_URL}/api/assistant/history`, {
+      const res = await fetch(`${API_BASE_URL}/api/assistant/history`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(msg),
+        body: JSON.stringify({ role: msg.role, content: msg.content }),
       });
+      const data = await res.json();
+      return data.id;
     } catch {
       // non-critical — conversation still works locally even if a save fails
+      return undefined;
+    }
+  };
+
+  const rateMessage = async (index: number, rating: "up" | "down") => {
+    setMessages((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, feedback: m.feedback === rating ? null : rating } : m))
+    );
+    const msg = messages[index];
+    if (!msg?.id) return;
+    try {
+      const token = await getToken();
+      const nextRating = messages[index].feedback === rating ? null : rating;
+      await fetch(`${API_BASE_URL}/api/assistant/history/${msg.id}/feedback`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rating: nextRating }),
+      });
+    } catch {
+      // best-effort only
     }
   };
 
@@ -145,6 +179,7 @@ export default function HelpPage() {
     setMessages(newMessages);
     setInput("");
     setIsLoading(true);
+    setFollowUps([]);
     saveMessage(userMsg);
 
     try {
@@ -169,12 +204,12 @@ export default function HelpPage() {
       }
 
       const data = await res.json();
-      const replyMsg: ChatMsg = {
-        role: "assistant",
-        content: data.reply || "Sorry, I couldn't process that.",
-      };
+      const { text, suggestions } = parseReply(data.reply || "Sorry, I couldn't process that.");
+      const replyMsg: ChatMsg = { role: "assistant", content: text };
       setMessages((prev) => [...prev, replyMsg]);
-      saveMessage(replyMsg);
+      setFollowUps(suggestions);
+      const id = await saveMessage(replyMsg);
+      if (id) setMessages((prev) => prev.map((m, i) => (i === prev.length - 1 ? { ...m, id } : m)));
     } catch {
       const errMsg: ChatMsg = {
         role: "assistant",
@@ -234,15 +269,40 @@ export default function HelpPage() {
                 </div>
               ) : (
                 messages.map((m, i) => (
-                  <div
-                    key={i}
-                    className={`max-w-[85%] text-sm leading-relaxed rounded-lg px-3.5 py-2.5 whitespace-pre-wrap ${
-                      m.role === "user"
-                        ? "self-end bg-primary/15 text-foreground border border-primary/20"
-                        : "self-start bg-secondary/50 text-foreground border border-border"
-                    }`}
-                  >
-                    {m.role === "assistant" ? <MessageContent text={m.content} /> : m.content}
+                  <div key={i} className={`flex flex-col gap-1 ${m.role === "user" ? "items-end" : "items-start"}`}>
+                    <div
+                      className={`max-w-[85%] text-sm leading-relaxed rounded-lg px-3.5 py-2.5 whitespace-pre-wrap ${
+                        m.role === "user"
+                          ? "bg-primary/15 text-foreground border border-primary/20"
+                          : "bg-secondary/50 text-foreground border border-border"
+                      }`}
+                    >
+                      {m.role === "assistant" ? <MessageContent text={m.content} /> : m.content}
+                    </div>
+                    {m.role === "assistant" && i > 0 && (
+                      <div className="flex items-center gap-1 px-1">
+                        <button
+                          type="button"
+                          onClick={() => rateMessage(i, "up")}
+                          aria-label="Good reply"
+                          className={`p-1 rounded hover:bg-secondary/60 transition-colors ${
+                            m.feedback === "up" ? "text-green-500" : "text-muted-foreground/50"
+                          }`}
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => rateMessage(i, "down")}
+                          aria-label="Bad reply"
+                          className={`p-1 rounded hover:bg-secondary/60 transition-colors ${
+                            m.feedback === "down" ? "text-red-500" : "text-muted-foreground/50"
+                          }`}
+                        >
+                          <ThumbsDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -261,6 +321,21 @@ export default function HelpPage() {
                       type="button"
                       onClick={() => sendMessage(q)}
                       className="text-xs px-3 py-1.5 rounded-full border border-border bg-secondary/30 hover:bg-secondary/60 text-foreground transition-colors"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {followUps.length > 0 && !isLoading && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {followUps.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => sendMessage(q)}
+                      className="text-xs px-3 py-1.5 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
                     >
                       {q}
                     </button>
