@@ -749,12 +749,21 @@ function ffToUtcIso(dateStr: string, timeStr: string): string | null {
     Number(timeStr.slice(0, 2)), Number(timeStr.slice(3, 5)))).toISOString();
 }
 
+// FF_CALENDAR_GITHUB_TOKEN: a fine-grained PAT with "Contents: Read-only"
+// on just this repo, so it can stay private. Optional — if unset, we fall
+// back to an unauthenticated request (works fine for a public repo).
+const FF_GH_TOKEN = process.env["FF_CALENDAR_GITHUB_TOKEN"];
+
 async function fetchJsonFromGithub(monthSlug: string): Promise<any[]> {
   const url = `https://raw.githubusercontent.com/${FF_GH_OWNER}/${FF_GH_REPO}/${FF_GH_BRANCH}/news/last_run/${monthSlug}.json`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10_000);
   try {
-    const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+    const res = await fetch(url, {
+      signal: controller.signal,
+      cache: "no-store",
+      headers: FF_GH_TOKEN ? { Authorization: `token ${FF_GH_TOKEN}` } : undefined,
+    });
     if (!res.ok) {
       if (res.status === 404) return []; // that month just hasn't been scraped/committed yet
       throw new Error(`GitHub raw fetch error: ${res.status}`);
