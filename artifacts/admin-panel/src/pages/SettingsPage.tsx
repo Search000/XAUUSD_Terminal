@@ -8,6 +8,7 @@ type SystemSettings = {
   licenseEnforcementEnabled: boolean;
   trialModeEnabled: boolean;
   trialDurationDays: number;
+  assistantEnabled: boolean;
 };
 
 type TelegramSettings = {
@@ -334,6 +335,11 @@ export function SettingsPage() {
     mutation.mutate({ trialModeEnabled: !data.trialModeEnabled });
   };
 
+  const toggleAssistant = () => {
+    if (!data) return;
+    mutation.mutate({ assistantEnabled: !data.assistantEnabled });
+  };
+
   const saveTrialDays = () => {
     const days = parseInt(trialDaysInput, 10);
     if (isNaN(days) || days < 1 || days > 365) {
@@ -424,6 +430,28 @@ export function SettingsPage() {
           </p>
         </div>
       </ToggleRow>
+
+      {/* Terminal Assistant */}
+      <ToggleRow
+        title="Terminal Assistant"
+        description={
+          <>
+            When <strong>ON</strong>, the "Need help?" AI chat assistant is available to all users in the sidebar and at /help.
+            <br />
+            When <strong>OFF</strong>, the assistant is hidden from every user.
+          </>
+        }
+        checked={data?.assistantEnabled ?? true}
+        onToggle={toggleAssistant}
+        disabled={disabled}
+        checkedColor="bg-primary border-primary"
+        badge={{
+          text: "ASSISTANT ON — Visible to users|ASSISTANT OFF — Hidden from users",
+          active: "border-green-500/30 bg-green-500/10 text-green-400",
+          inactive: "border-slate-500/30 bg-slate-500/10 text-slate-400",
+        }}
+        warning="ℹ️ The assistant is OFF. Users will not see the help chat option."
+      />
 
       {/* Telegram Notifications */}
       <TelegramSection />

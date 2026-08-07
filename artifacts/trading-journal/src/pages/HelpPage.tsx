@@ -18,6 +18,16 @@ const DEFAULT_GREETING: ChatMsg = {
 
 export default function HelpPage() {
   const { getToken, isLoaded } = useAuth();
+  const [isEnabled, setIsEnabled] = useState(true);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/assistant/status`)
+      .then((r) => r.json())
+      .then((data) => setIsEnabled(data.enabled !== false))
+      .catch(() => setIsEnabled(true))
+      .finally(() => setIsCheckingStatus(false));
+  }, []);
 
   const [messages, setMessages] = useState<ChatMsg[]>([DEFAULT_GREETING]);
   const [input, setInput] = useState("");
@@ -115,6 +125,19 @@ export default function HelpPage() {
           </span>
         </div>
 
+        {isCheckingStatus ? (
+          <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading...
+          </div>
+        ) : !isEnabled ? (
+          <div className="flex-1 flex items-center justify-center text-center px-6">
+            <p className="text-sm text-muted-foreground max-w-sm">
+              The Terminal Assistant is currently unavailable. Please check back later.
+            </p>
+          </div>
+        ) : (
+          <>
         {/* Messages */}
         <div
           ref={scrollRef}
@@ -174,6 +197,8 @@ export default function HelpPage() {
             </button>
           </div>
         </div>
+          </>
+        )}
       </div>
     </AppLayout>
   );

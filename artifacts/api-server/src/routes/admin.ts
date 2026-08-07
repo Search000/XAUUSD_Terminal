@@ -160,15 +160,17 @@ router.get("/admin/system-settings", requireAuth, requirePermission("manage_sett
     licenseEnforcementEnabled: row?.licenseEnforcementEnabled ?? true,
     trialModeEnabled: row?.trialModeEnabled ?? false,
     trialDurationDays: row?.trialDurationDays ?? 7,
+    assistantEnabled: row?.assistantEnabled ?? true,
   });
 }));
 
 /** PUT /api/admin/system-settings */
 router.put("/admin/system-settings", requireAuth, requirePermission("manage_settings"), asyncHandler(async (req, res) => {
-  const { licenseEnforcementEnabled, trialModeEnabled, trialDurationDays } = req.body as {
+  const { licenseEnforcementEnabled, trialModeEnabled, trialDurationDays, assistantEnabled } = req.body as {
     licenseEnforcementEnabled?: boolean;
     trialModeEnabled?: boolean;
     trialDurationDays?: number;
+    assistantEnabled?: boolean;
   };
 
   if (licenseEnforcementEnabled !== undefined && typeof licenseEnforcementEnabled !== "boolean") {
@@ -183,13 +185,18 @@ router.put("/admin/system-settings", requireAuth, requirePermission("manage_sett
     res.status(400).json({ error: "trialDurationDays must be a number between 1 and 365" });
     return;
   }
+  if (assistantEnabled !== undefined && typeof assistantEnabled !== "boolean") {
+    res.status(400).json({ error: "assistantEnabled must be a boolean" });
+    return;
+  }
 
   const [existing] = await db.select().from(systemSettingsTable).where(eq(systemSettingsTable.id, 1));
 
-  const patch: Partial<{ licenseEnforcementEnabled: boolean; trialModeEnabled: boolean; trialDurationDays: number; updatedAt: Date }> = { updatedAt: new Date() };
+  const patch: Partial<{ licenseEnforcementEnabled: boolean; trialModeEnabled: boolean; trialDurationDays: number; assistantEnabled: boolean; updatedAt: Date }> = { updatedAt: new Date() };
   if (licenseEnforcementEnabled !== undefined) patch.licenseEnforcementEnabled = licenseEnforcementEnabled;
   if (trialModeEnabled !== undefined) patch.trialModeEnabled = trialModeEnabled;
   if (trialDurationDays !== undefined) patch.trialDurationDays = trialDurationDays;
+  if (assistantEnabled !== undefined) patch.assistantEnabled = assistantEnabled;
 
   if (existing) {
     const [updated] = await db
@@ -201,6 +208,7 @@ router.put("/admin/system-settings", requireAuth, requirePermission("manage_sett
       licenseEnforcementEnabled: updated.licenseEnforcementEnabled,
       trialModeEnabled: updated.trialModeEnabled,
       trialDurationDays: updated.trialDurationDays,
+      assistantEnabled: updated.assistantEnabled,
     });
     return;
   }
@@ -212,11 +220,13 @@ router.put("/admin/system-settings", requireAuth, requirePermission("manage_sett
       licenseEnforcementEnabled: licenseEnforcementEnabled ?? true,
       trialModeEnabled: trialModeEnabled ?? false,
       trialDurationDays: trialDurationDays ?? 7,
+      assistantEnabled: assistantEnabled ?? true,
     })
     .returning();
   res.json({
     licenseEnforcementEnabled: created.licenseEnforcementEnabled,
     trialModeEnabled: created.trialModeEnabled,
+    assistantEnabled: created.assistantEnabled,
   });
 }));
 

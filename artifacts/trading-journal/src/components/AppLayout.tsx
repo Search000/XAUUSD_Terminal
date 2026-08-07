@@ -31,6 +31,7 @@ import { NicknameModal } from "./NicknameModal";
 import { TrialCountdownBanner } from "./TrialCountdownBanner";
 import { FeedbackModal } from "./FeedbackModal";
 import { RequestLicenseModal } from "./RequestLicenseModal";
+import { API_BASE_URL } from "@/lib/apiConfig";
 
 const FEEDBACK_KEY = "trial_feedback_shown";
 
@@ -54,6 +55,14 @@ export function AppLayout({
   const [isBalanceVisible, setIsBalanceVisible] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showRequestLicense, setShowRequestLicense] = useState(false);
+  const [isAssistantEnabled, setIsAssistantEnabled] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/assistant/status`)
+      .then((r) => r.json())
+      .then((data) => setIsAssistantEnabled(data.enabled !== false))
+      .catch(() => setIsAssistantEnabled(true)); // fail open — don't hide help over a network blip
+  }, []);
 
   const handleGetLicense = useCallback(() => {
     setShowRequestLicense(true);
@@ -252,18 +261,20 @@ export function AppLayout({
           })}
         </nav>
 
-        {/* Help — links to a dedicated full page */}
-        <div className="px-1 sm:px-2 pb-2 shrink-0">
-          <Link href="/help">
-            <span
-              title="Need help?"
-              className="w-full text-xs font-mono uppercase tracking-wider text-primary border border-primary/30 bg-primary/10 hover:bg-primary/20 transition-colors px-1 sm:px-2.5 py-2 rounded flex items-center justify-center sm:justify-start gap-2 cursor-pointer"
-            >
-              <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">Need help?</span>
-            </span>
-          </Link>
-        </div>
+        {/* Help — links to a dedicated full page (hidden if admin disables the assistant) */}
+        {isAssistantEnabled && (
+          <div className="px-1 sm:px-2 pb-2 shrink-0">
+            <Link href="/help">
+              <span
+                title="Need help?"
+                className="w-full text-xs font-mono uppercase tracking-wider text-primary border border-primary/30 bg-primary/10 hover:bg-primary/20 transition-colors px-1 sm:px-2.5 py-2 rounded flex items-center justify-center sm:justify-start gap-2 cursor-pointer"
+              >
+                <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Need help?</span>
+              </span>
+            </Link>
+          </div>
+        )}
 
         {/* Bottom user section */}
         <div className="border-t border-border p-2 sm:p-3 flex flex-col gap-2 shrink-0">

@@ -50,6 +50,8 @@ export const systemSettingsTable = pgTable("system_settings", {
   trialModeEnabled: boolean("trial_mode_enabled").notNull().default(false),
   /** Number of days for the free trial (admin-configurable, default 7). */
   trialDurationDays: integer("trial_duration_days").notNull().default(7),
+  /** When false, the Terminal Assistant (AI help chat) is hidden/disabled for all users. */
+  assistantEnabled: boolean("assistant_enabled").notNull().default(true),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 export type SystemSettings = typeof systemSettingsTable.$inferSelect;

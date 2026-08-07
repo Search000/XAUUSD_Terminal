@@ -1,12 +1,18 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { assistantMessagesTable } from "@workspace/db";
+import { assistantMessagesTable, systemSettingsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 import { asyncHandler } from "../lib/asyncHandler";
 
 const router = Router();
+
+/** GET /api/assistant/status — public, tells the frontend whether to show the assistant */
+router.get("/assistant/status", asyncHandler(async (_req, res) => {
+  const [row] = await db.select().from(systemSettingsTable).where(eq(systemSettingsTable.id, 1));
+  res.json({ enabled: row?.assistantEnabled ?? true });
+}));
 
 /** GET /api/assistant/history — full conversation for the signed-in user */
 router.get("/assistant/history", requireAuth, asyncHandler(async (req, res) => {
