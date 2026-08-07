@@ -26,19 +26,20 @@ const QUICK_REPLIES = [
   "How do investor shares work?",
 ];
 
-/** Splits a raw bot reply into { text, suggestions } — parses the trailing <suggestions>a|b|c</suggestions> block.
- *  Tolerant of a truncated/unclosed tag (e.g. response cut short) — in that case the tag is just stripped. */
+/** Splits a raw bot reply into { text, suggestions } — parses a trailing suggestions block.
+ *  Tolerant of both <suggestions>...</suggestions> and [suggestions]...[/suggestions] styles,
+ *  and of a truncated/unclosed tag (in that case it's just stripped, no suggestions shown). */
 function parseReply(raw: string): { text: string; suggestions: string[] } {
-  const closedMatch = raw.match(/<suggestions>(.*?)<\/suggestions>/s);
+  const closedMatch = raw.match(/[<[]suggestions[>\]]([\s\S]*?)[<[]\/suggestions[>\]]/i);
   if (closedMatch) {
     const suggestions = closedMatch[1].split("|").map((s) => s.trim()).filter(Boolean).slice(0, 3);
     const text = raw.replace(closedMatch[0], "").trim();
     return { text, suggestions };
   }
-  // Unclosed/truncated tag — drop everything from the opening tag onward, no suggestions to show
-  const openIndex = raw.indexOf("<suggestions>");
-  if (openIndex !== -1) {
-    return { text: raw.slice(0, openIndex).trim(), suggestions: [] };
+  // Unclosed/truncated tag, or an opening tag with no closing tag at all — drop everything from there onward
+  const openMatch = raw.match(/[<[]suggestions[>\]]/i);
+  if (openMatch && openMatch.index !== undefined) {
+    return { text: raw.slice(0, openMatch.index).trim(), suggestions: [] };
   }
   return { text: raw.trim(), suggestions: [] };
 }
