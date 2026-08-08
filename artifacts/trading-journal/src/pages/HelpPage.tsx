@@ -404,8 +404,7 @@ export default function HelpPage() {
             {/* Input */}
             <div className="border-t border-border p-3 sm:p-4 shrink-0">
               <div className="flex items-center gap-2 max-w-3xl w-full mx-auto">
-                <input
-                  type="text"
+                <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -415,7 +414,8 @@ export default function HelpPage() {
                     }
                   }}
                   placeholder="Ask a question..."
-                  className="flex-1 bg-secondary/40 border border-border rounded px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  rows={1}
+                  className="flex-1 bg-secondary/40 border border-border rounded px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none max-h-40 overflow-y-auto"
                 />
                 <button
                   type="button"

@@ -118,12 +118,18 @@ export function OpsAgentPage() {
           <div ref={bottomRef} />
         </div>
         <div className="flex gap-2 border-t border-neutral-800 p-3">
-          <input
+          <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
             placeholder="Ask about health, errors, signups…"
-            className="flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-blue-500"
+            rows={1}
+            className="flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-blue-500 resize-none max-h-40 overflow-y-auto"
           />
           <button
             onClick={() => send()}
