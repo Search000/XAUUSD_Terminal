@@ -31,6 +31,12 @@ export function OpsAgentPage() {
 
   useEffect(() => {
     loadPending();
+    // Proactive briefing — fires automatically on load, before the admin types anything.
+    send(
+      "Give me a quick proactive status briefing right now: what's currently healthy, what needs my attention, and what you'd advise doing next. Keep it short and actionable.",
+      true,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -46,10 +52,12 @@ export function OpsAgentPage() {
     }
   }
 
-  async function send(overrideText?: string) {
+  async function send(overrideText?: string, hideUserBubble = false) {
     const userText = (overrideText ?? input).trim();
     if (!userText || loading) return;
-    setMessages((m) => [...m, { role: "user", text: userText }]);
+    if (!hideUserBubble) {
+      setMessages((m) => [...m, { role: "user", text: userText }]);
+    }
     setInput("");
     setLoading(true);
     try {
