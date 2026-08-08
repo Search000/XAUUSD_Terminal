@@ -47,7 +47,7 @@ function parseReply(raw: string): { text: string; suggestions: string[] } {
 /** Renders text with markdown-style [label](/path) links as clickable in-app links (SPA nav, no reload). */
 function MessageContent({ text }: { text: string }) {
   const parts: React.ReactNode[] = [];
-  const linkRegex = /\[([^\]]+)\]\((\/[a-zA-Z0-9\-_/]*)\)/g;
+  const linkRegex = /\[([^\]]+)\]\((?:https?:\/\/[^/\s)]+)?(\/[a-zA-Z0-9\-_/]*)\)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   let key = 0;
