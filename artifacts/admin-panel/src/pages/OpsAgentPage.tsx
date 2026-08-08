@@ -4,7 +4,15 @@ import { customFetch } from "@workspace/api-client-react";
 // Worker URL — set via admin-panel env, e.g. VITE_OPS_AGENT_WORKER_URL
 const WORKER_URL = import.meta.env.VITE_OPS_AGENT_WORKER_URL as string;
 
-type ChatMsg = { role: "user" | "bot"; text: string };
+type ChatMsg = { role: "user" | "bot"; text: string; suggestions?: string[] };
+
+function parseReply(raw: string): { text: string; suggestions: string[] } {
+  const match = raw.match(/<suggestions>(.*?)<\/suggestions>/s);
+  if (!match) return { text: raw.trim(), suggestions: [] };
+  const suggestions = match[1].split("|").map((s) => s.trim()).filter(Boolean);
+  const text = raw.replace(match[0], "").trim();
+  return { text, suggestions };
+}
 
 type PendingAction = {
   id: number;
@@ -38,9 +46,9 @@ export function OpsAgentPage() {
     }
   }
 
-  async function send() {
-    if (!input.trim() || loading) return;
-    const userText = input.trim();
+  async function send(overrideText?: string) {
+    const userText = (overrideText ?? input).trim();
+    if (!userText || loading) return;
     setMessages((m) => [...m, { role: "user", text: userText }]);
     setInput("");
     setLoading(true);
@@ -53,7 +61,8 @@ export function OpsAgentPage() {
         body: JSON.stringify({ message: userText }),
       });
       const data = await res.json();
-      setMessages((m) => [...m, { role: "bot", text: data.reply ?? "(no response)" }]);
+      const { text, suggestions } = parseReply(data.reply ?? "(no response)");
+      setMessages((m) => [...m, { role: "bot", text, suggestions }]);
     } catch (err) {
       setMessages((m) => [...m, { role: "bot", text: `Error: ${String(err)}` }]);
     } finally {
@@ -79,15 +88,30 @@ export function OpsAgentPage() {
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
           {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                m.role === "user"
-                  ? "ml-auto bg-blue-600 text-white"
-                  : "bg-neutral-800 text-neutral-100"
-              }`}
-            >
-              {m.text}
+            <div key={i} className={m.role === "user" ? "ml-auto max-w-[80%]" : "max-w-[80%]"}>
+              <div
+                className={`rounded-lg px-3 py-2 text-sm ${
+                  m.role === "user"
+                    ? "bg-blue-600 text-white"
+                    : "bg-neutral-800 text-neutral-100"
+                }`}
+              >
+                {m.text}
+              </div>
+              {m.role === "bot" && m.suggestions && m.suggestions.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {m.suggestions.map((s, si) => (
+                    <button
+                      key={si}
+                      onClick={() => send(s)}
+                      disabled={loading}
+                      className="rounded-full border border-neutral-700 bg-neutral-900 px-2.5 py-1 text-xs text-neutral-300 hover:border-blue-500 hover:text-blue-400 disabled:opacity-50"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           {loading && <div className="text-xs text-neutral-500">thinking…</div>}
@@ -102,7 +126,7 @@ export function OpsAgentPage() {
             className="flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-blue-500"
           />
           <button
-            onClick={send}
+            onClick={() => send()}
             disabled={loading}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
